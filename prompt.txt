@@ -1,0 +1,68 @@
+Necesito que construyas una app React Native con Expo que es un presupuesto personal financiero completo. La app debe tener 4 pantallas con navegación por tabs en la parte inferior usando @react-navigation/bottom-tabs.
+
+PANTALLA 1 - DASHBOARD:
+- Resumen de ingresos totales mensuales y anuales
+- Resumen de gastos totales mensuales y anuales
+- Flujo de caja (ingresos - gastos) con color verde si positivo, rojo si negativo
+- Flujo de caja con ahorro (ingresos - ahorro - gastos)
+- 3 gráficas tipo pie usando react-native-chart-kit:
+  1. "¿En qué estás gastando?" — por categoría (Hogar, Comida, Transporte, Créditos, Entretenimiento, Familia)
+  2. "¿De dónde vienen tus ingresos?" — por fuente (Salario, Bonos, Dividendos, Comisiones, Otros)
+  3. "Tipo de Gasto" — Esenciales vs No Esenciales vs Créditos
+- Fondo de emergencia: 3 meses de gastos esenciales
+
+PANTALLA 2 - PRESUPUESTO (formularios editables):
+Ingresos (5 fuentes): Salario, Bonos, Dividendos, Comisiones, Otros
+Cada uno con:
+- Selector de periodicidad: Mensual, Bimensual, Trimestral, Semestral, Anual
+- Campo de monto
+- Cálculo automático a mensual y anual según la periodicidad
+
+Gastos organizados en 6 categorías:
+- Hogar: Arriendo, Administración, Luz, Agua, Gas, Teléfono, Internet, TV, Otro
+- Comida: Mercado, Comidas por fuera, Otro
+- Transporte: Gasolina, Taxi/Uber, Mantenimiento auto, Seguro auto, Otro
+- Créditos/Deudas: Crédito Hipotecario, Crédito Auto, Tarjeta de Crédito, Otro
+- Entretenimiento: Viajes, Restaurantes, Diversión, Fiesta, Otros
+- Familia: Colegios, Seguro Médico, Otros Seguros, Suscripciones, Gimnasio, Impuestos, Entretenimiento, Otros
+
+Cada gasto tiene:
+- Clasificación E/NE (Esencial/No Esencial) como toggle
+- Selector de periodicidad
+- Campo de monto
+- Conversión automática mensual/anual
+
+Ahorro: monto deseado con periodicidad
+
+PANTALLA 3 - FLUJO DE CAJA MENSUAL:
+- 12 meses (Enero a Diciembre)
+- Se pre-llena con los datos del presupuesto
+- Pero cada mes es editable individualmente
+- Muestra el flujo de caja (ingresos - gastos) por cada mes
+
+PANTALLA 4 - TRANQUILIDAD FINANCIERA:
+- Campo: Gastos mensuales deseados
+- Campo: Rentabilidad esperada anual (%)
+- Calcula: Patrimonio necesario = gastos mensuales / (rentabilidad anual / 12)
+- Campo: Patrimonio actual
+- Muestra: Progreso (%) con barra visual
+- Muestra: Cuánto falta
+
+REQUISITOS TÉCNICOS:
+- Usa AsyncStorage para guardar todos los datos localmente
+- Tema oscuro (fondo #0a0a1a, cards #12122a, bordes #2a2a4a)
+- Colores: verde teal #2dd4bf para positivo, rosa #f472b6 para gastos, morado #818cf8 para info
+- Los montos en formato colombiano con separador de miles
+- ScrollView en cada pantalla
+- La app debe funcionar correctamente en Android
+
+Estructura los archivos así:
+/src/screens/DashboardScreen.js
+/src/screens/PresupuestoScreen.js
+/src/screens/FlujoMensualScreen.js
+/src/screens/TranquilidadScreen.js
+/src/components/ (componentes reutilizables)
+/src/utils/calculations.js (funciones de conversión de periodicidad)
+/src/utils/storage.js (funciones de AsyncStorage)
+/src/navigation/TabNavigator.js
+/App.js
