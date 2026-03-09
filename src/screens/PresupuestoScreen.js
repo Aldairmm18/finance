@@ -1,11 +1,12 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  StyleSheet, Modal, Switch,
+  StyleSheet, Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadData, saveData } from '../utils/storage';
-import { COLORS, PERIODICIDADES, formatCOP, toMonthly, toAnnual } from '../utils/calculations';
+import { PERIODICIDADES, formatCOP, toMonthly, toAnnual } from '../utils/calculations';
+import { useTheme } from '../context/ThemeContext';
 
 // ─── Metadata ────────────────────────────────────────────────────────────────
 
@@ -87,18 +88,31 @@ const EXPENSE_CATEGORIES = [
 // ─── PeriodicidadModal ────────────────────────────────────────────────────────
 
 function PeriodicidadModal({ visible, current, onSelect, onClose }) {
+  const { colors: C } = useTheme();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={ms.overlay} activeOpacity={1} onPress={onClose}>
-        <View style={ms.box}>
-          <Text style={ms.title}>Periodicidad</Text>
+      <TouchableOpacity
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <View style={{ backgroundColor: C.card, borderRadius: 14, padding: 20, width: 240, borderWidth: 1, borderColor: C.border }}>
+          <Text style={{ color: C.text, fontWeight: '700', fontSize: 16, marginBottom: 12, textAlign: 'center' }}>
+            Periodicidad
+          </Text>
           {PERIODICIDADES.map(p => (
             <TouchableOpacity
               key={p.value}
-              style={[ms.option, current === p.value && ms.optionActive]}
+              style={[
+                { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, marginBottom: 4 },
+                current === p.value && { backgroundColor: C.teal + '30' },
+              ]}
               onPress={() => { onSelect(p.value); onClose(); }}
             >
-              <Text style={[ms.optionText, current === p.value && ms.optionTextActive]}>
+              <Text style={[
+                { fontSize: 15, color: C.textMuted },
+                current === p.value && { color: C.teal, fontWeight: '700' },
+              ]}>
                 {p.label}
               </Text>
             </TouchableOpacity>
@@ -109,41 +123,48 @@ function PeriodicidadModal({ visible, current, onSelect, onClose }) {
   );
 }
 
-const ms = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
-  box: { backgroundColor: COLORS.card, borderRadius: 14, padding: 20, width: 240, borderWidth: 1, borderColor: COLORS.border },
-  title: { color: COLORS.text, fontWeight: '700', fontSize: 16, marginBottom: 12, textAlign: 'center' },
-  option: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, marginBottom: 4 },
-  optionActive: { backgroundColor: COLORS.teal + '30' },
-  optionText: { color: COLORS.textMuted, fontSize: 15 },
-  optionTextActive: { color: COLORS.teal, fontWeight: '700' },
-});
-
 // ─── IncomeRow ────────────────────────────────────────────────────────────────
 
 const IncomeRow = React.memo(({ label, item, onChangeMonto, onOpenPeriod }) => {
+  const { colors: C } = useTheme();
   const monthly = toMonthly(item.monto, item.periodicidad);
   const annual = toAnnual(item.monto, item.periodicidad);
   return (
-    <View style={rs.row}>
-      <View style={rs.rowTop}>
-        <Text style={rs.label}>{label}</Text>
-        <TouchableOpacity style={rs.periodBtn} onPress={onOpenPeriod}>
-          <Text style={rs.periodText}>{PERIODICIDADES.find(p => p.value === item.periodicidad)?.label || 'Mensual'}</Text>
+    <View style={{ borderBottomWidth: 1, borderBottomColor: C.border, paddingVertical: 10 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <Text style={{ fontSize: 14, color: C.text, flex: 1 }}>{label}</Text>
+        <TouchableOpacity
+          style={{ backgroundColor: C.border, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}
+          onPress={onOpenPeriod}
+        >
+          <Text style={{ fontSize: 12, color: C.purple, fontWeight: '600' }}>
+            {PERIODICIDADES.find(p => p.value === item.periodicidad)?.label || 'Mensual'}
+          </Text>
         </TouchableOpacity>
       </View>
-      <View style={rs.rowBottom}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TextInput
-          style={rs.input}
+          style={{
+            flex: 1,
+            backgroundColor: C.inputBg,
+            color: C.text,
+            borderRadius: 8,
+            paddingHorizontal: 10,
+            paddingVertical: 7,
+            fontSize: 14,
+            borderWidth: 1,
+            borderColor: C.border,
+            marginRight: 8,
+          }}
           value={item.monto}
           onChangeText={onChangeMonto}
           keyboardType="numeric"
           placeholder="0"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={C.textMuted}
         />
-        <View style={rs.calcBox}>
-          <Text style={rs.calcText}>M: <Text style={{ color: COLORS.teal }}>{formatCOP(monthly)}</Text></Text>
-          <Text style={rs.calcText}>A: <Text style={{ color: COLORS.teal }}>{formatCOP(annual)}</Text></Text>
+        <View style={{ alignItems: 'flex-end', minWidth: 80 }}>
+          <Text style={{ fontSize: 11, color: C.textMuted }}>M: <Text style={{ color: C.teal }}>{formatCOP(monthly)}</Text></Text>
+          <Text style={{ fontSize: 11, color: C.textMuted }}>A: <Text style={{ color: C.teal }}>{formatCOP(annual)}</Text></Text>
         </View>
       </View>
     </View>
@@ -153,109 +174,92 @@ const IncomeRow = React.memo(({ label, item, onChangeMonto, onOpenPeriod }) => {
 // ─── ExpenseRow ───────────────────────────────────────────────────────────────
 
 const ExpenseRow = React.memo(({ label, item, onChangeMonto, onOpenPeriod, onToggleEsencial }) => {
+  const { colors: C } = useTheme();
   const monthly = toMonthly(item.monto, item.periodicidad);
   const annual = toAnnual(item.monto, item.periodicidad);
   return (
-    <View style={rs.row}>
-      <View style={rs.rowTop}>
-        <Text style={rs.label}>{label}</Text>
+    <View style={{ borderBottomWidth: 1, borderBottomColor: C.border, paddingVertical: 10 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <Text style={{ fontSize: 14, color: C.text, flex: 1 }}>{label}</Text>
         <TouchableOpacity
-          style={[rs.badge, item.esencial ? rs.badgeE : rs.badgeNE]}
+          style={[
+            { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, marginLeft: 8 },
+            item.esencial
+              ? { backgroundColor: C.teal + '30' }
+              : { backgroundColor: C.pink + '30' },
+          ]}
           onPress={onToggleEsencial}
         >
-          <Text style={[rs.badgeText, item.esencial ? rs.badgeTextE : rs.badgeTextNE]}>
+          <Text style={[
+            { fontSize: 12, fontWeight: '700' },
+            item.esencial ? { color: C.teal } : { color: C.pink },
+          ]}>
             {item.esencial ? 'E' : 'NE'}
           </Text>
         </TouchableOpacity>
       </View>
-      <View style={rs.rowBottom}>
-        <TouchableOpacity style={rs.periodBtn} onPress={onOpenPeriod}>
-          <Text style={rs.periodText}>{PERIODICIDADES.find(p => p.value === item.periodicidad)?.label || 'Mensual'}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <TouchableOpacity
+          style={{ backgroundColor: C.border, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}
+          onPress={onOpenPeriod}
+        >
+          <Text style={{ fontSize: 12, color: C.purple, fontWeight: '600' }}>
+            {PERIODICIDADES.find(p => p.value === item.periodicidad)?.label || 'Mensual'}
+          </Text>
         </TouchableOpacity>
         <TextInput
-          style={[rs.input, { flex: 1, marginHorizontal: 8 }]}
+          style={{
+            flex: 1,
+            backgroundColor: C.inputBg,
+            color: C.text,
+            borderRadius: 8,
+            paddingHorizontal: 10,
+            paddingVertical: 7,
+            fontSize: 14,
+            borderWidth: 1,
+            borderColor: C.border,
+            marginHorizontal: 8,
+          }}
           value={item.monto}
           onChangeText={onChangeMonto}
           keyboardType="numeric"
           placeholder="0"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={C.textMuted}
         />
-        <View style={rs.calcBox}>
-          <Text style={rs.calcText}>M: <Text style={{ color: COLORS.pink }}>{formatCOP(monthly)}</Text></Text>
-          <Text style={rs.calcText}>A: <Text style={{ color: COLORS.pink }}>{formatCOP(annual)}</Text></Text>
+        <View style={{ alignItems: 'flex-end', minWidth: 80 }}>
+          <Text style={{ fontSize: 11, color: C.textMuted }}>M: <Text style={{ color: C.pink }}>{formatCOP(monthly)}</Text></Text>
+          <Text style={{ fontSize: 11, color: C.textMuted }}>A: <Text style={{ color: C.pink }}>{formatCOP(annual)}</Text></Text>
         </View>
       </View>
     </View>
   );
 });
 
-const rs = StyleSheet.create({
-  row: {
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingVertical: 10,
-  },
-  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  rowBottom: { flexDirection: 'row', alignItems: 'center' },
-  label: { fontSize: 14, color: COLORS.text, flex: 1 },
-  periodBtn: {
-    backgroundColor: COLORS.border,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  periodText: { fontSize: 12, color: COLORS.purple, fontWeight: '600' },
-  input: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-    color: COLORS.text,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginRight: 8,
-  },
-  calcBox: { alignItems: 'flex-end', minWidth: 80 },
-  calcText: { fontSize: 11, color: COLORS.textMuted },
-  badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, marginLeft: 8 },
-  badgeE: { backgroundColor: COLORS.teal + '30' },
-  badgeNE: { backgroundColor: COLORS.pink + '30' },
-  badgeText: { fontSize: 12, fontWeight: '700' },
-  badgeTextE: { color: COLORS.teal },
-  badgeTextNE: { color: COLORS.pink },
-});
-
 // ─── SectionHeader ────────────────────────────────────────────────────────────
 
 function SectionHeader({ icon, label, total, expanded, onPress }) {
+  const { colors: C } = useTheme();
   return (
-    <TouchableOpacity style={sh.header} onPress={onPress}>
-      <Text style={sh.icon}>{icon}</Text>
-      <Text style={sh.label}>{label}</Text>
-      <Text style={sh.total}>{formatCOP(total)}/mes</Text>
-      <Text style={sh.arrow}>{expanded ? '▲' : '▼'}</Text>
+    <TouchableOpacity
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: C.card,
+        borderRadius: 10,
+        padding: 14,
+        marginBottom: 2,
+        borderWidth: 1,
+        borderColor: C.border,
+      }}
+      onPress={onPress}
+    >
+      <Text style={{ fontSize: 18, marginRight: 10 }}>{icon}</Text>
+      <Text style={{ flex: 1, fontSize: 15, fontWeight: '700', color: C.text }}>{label}</Text>
+      <Text style={{ fontSize: 13, color: C.pink, marginRight: 10 }}>{formatCOP(total)}/mes</Text>
+      <Text style={{ fontSize: 12, color: C.textMuted }}>{expanded ? '▲' : '▼'}</Text>
     </TouchableOpacity>
   );
 }
-
-const sh = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 2,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  icon: { fontSize: 18, marginRight: 10 },
-  label: { flex: 1, fontSize: 15, fontWeight: '700', color: COLORS.text },
-  total: { fontSize: 13, color: COLORS.pink, marginRight: 10 },
-  arrow: { fontSize: 12, color: COLORS.textMuted },
-});
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -264,12 +268,15 @@ export default function PresupuestoScreen() {
   const [expanded, setExpanded] = useState({ ingresos: true });
   const [periodModal, setPeriodModal] = useState({ visible: false, current: 'mensual', onSelect: () => {} });
   const saveTimer = useRef(null);
+  const { colors: C } = useTheme();
 
   useFocusEffect(
     useCallback(() => {
       loadData().then(d => setData(d));
     }, [])
   );
+
+  const s = useMemo(() => makeStyles(C), [C]);
 
   const debouncedSave = useCallback((newData) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -327,7 +334,7 @@ export default function PresupuestoScreen() {
   if (!data) {
     return (
       <View style={[s.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: COLORS.textMuted }}>Cargando...</Text>
+        <Text style={{ color: C.textMuted }}>Cargando...</Text>
       </View>
     );
   }
@@ -336,11 +343,7 @@ export default function PresupuestoScreen() {
     sum + toMonthly(data.ingresos[key].monto, data.ingresos[key].periodicidad), 0);
 
   return (
-    <ScrollView
-      style={s.container}
-      contentContainerStyle={s.content}
-      keyboardShouldPersistTaps="handled"
-    >
+    <ScrollView style={s.container} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
       <Text style={s.title}>Presupuesto</Text>
 
       {/* ── Ingresos ── */}
@@ -446,21 +449,23 @@ export default function PresupuestoScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  content: { padding: 16, paddingTop: 52, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: 'bold', color: COLORS.text, marginBottom: 20 },
-  section: { marginBottom: 10 },
-  sectionBody: {
-    backgroundColor: COLORS.card,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingBottom: 4,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderTopWidth: 0,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-  },
-  autoSaveNote: { textAlign: 'center', color: COLORS.textMuted, fontSize: 12, marginTop: 8 },
-});
+function makeStyles(C) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    content: { padding: 16, paddingTop: 52, paddingBottom: 40 },
+    title: { fontSize: 28, fontWeight: 'bold', color: C.text, marginBottom: 20 },
+    section: { marginBottom: 10 },
+    sectionBody: {
+      backgroundColor: C.card,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingBottom: 4,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderTopWidth: 0,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+    },
+    autoSaveNote: { textAlign: 'center', color: C.textMuted, fontSize: 12, marginTop: 8 },
+  });
+}

@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadData, saveData } from '../utils/storage';
-import { COLORS, formatCOP, computeTotals, parseAmount } from '../utils/calculations';
+import { formatCOP, computeTotals, parseAmount } from '../utils/calculations';
+import { useTheme } from '../context/ThemeContext';
 
 const MONTHS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -14,6 +15,7 @@ export default function FlujoMensualScreen() {
   const [overrides, setOverrides] = useState({});
   const [fullData, setFullData] = useState(null);
   const saveTimer = useRef(null);
+  const { colors: C } = useTheme();
 
   useFocusEffect(
     useCallback(() => {
@@ -24,6 +26,8 @@ export default function FlujoMensualScreen() {
       });
     }, [])
   );
+
+  const s = useMemo(() => makeStyles(C), [C]);
 
   const debouncedSave = useCallback((newOverrides) => {
     if (!fullData) return;
@@ -77,7 +81,7 @@ export default function FlujoMensualScreen() {
 
       <View style={s.summaryCard}>
         <Text style={s.summaryLabel}>Flujo Anual Total</Text>
-        <Text style={[s.summaryValue, { color: annualFlujo >= 0 ? COLORS.teal : COLORS.pink }]}>
+        <Text style={[s.summaryValue, { color: annualFlujo >= 0 ? C.teal : C.pink }]}>
           {formatCOP(annualFlujo)}
         </Text>
         <Text style={s.summaryHint}>
@@ -94,14 +98,14 @@ export default function FlujoMensualScreen() {
 
       {MONTHS.map((month, idx) => {
         const { ingresos, gastos, flujo, hasOverride } = getMonthValues(idx);
-        const flujoColor = flujo >= 0 ? COLORS.teal : COLORS.pink;
+        const flujoColor = flujo >= 0 ? C.teal : C.pink;
         return (
-          <View key={idx} style={[s.monthRow, hasOverride && s.monthRowOverride]}>
+          <View key={idx} style={[s.monthRow, hasOverride && { borderColor: C.purple + '80' }]}>
             <View style={{ flex: 1.2 }}>
               <Text style={s.monthName}>{month}</Text>
               {hasOverride && (
                 <TouchableOpacity onPress={() => resetMonth(idx)}>
-                  <Text style={s.resetBtn}>↺ reset</Text>
+                  <Text style={{ fontSize: 10, color: C.purple, marginTop: 2 }}>↺ reset</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -111,7 +115,7 @@ export default function FlujoMensualScreen() {
               onChangeText={v => handleChange(idx, 'ingresos', v)}
               keyboardType="numeric"
               placeholder={String(budgetIngresos)}
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={C.textMuted}
             />
             <TextInput
               style={[s.input, { flex: 1.5, marginHorizontal: 6 }]}
@@ -119,7 +123,7 @@ export default function FlujoMensualScreen() {
               onChangeText={v => handleChange(idx, 'gastos', v)}
               keyboardType="numeric"
               placeholder={String(budgetGastos)}
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={C.textMuted}
             />
             <Text style={[s.flujoValue, { flex: 1.4, color: flujoColor }]}>
               {formatCOP(flujo)}
@@ -133,54 +137,54 @@ export default function FlujoMensualScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  content: { padding: 16, paddingTop: 52, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: 'bold', color: COLORS.text, marginBottom: 20 },
-  summaryCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 20,
-  },
-  summaryLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 4 },
-  summaryValue: { fontSize: 26, fontWeight: 'bold', marginBottom: 6 },
-  summaryHint: { fontSize: 11, color: COLORS.textMuted },
-  headerRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    backgroundColor: COLORS.border,
-    borderRadius: 8,
-    marginBottom: 4,
-  },
-  colHeader: { fontSize: 11, color: COLORS.textMuted, fontWeight: '700', textTransform: 'uppercase' },
-  monthRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  monthRowOverride: { borderColor: COLORS.purple + '80' },
-  monthName: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-  resetBtn: { fontSize: 10, color: COLORS.purple, marginTop: 2 },
-  input: {
-    backgroundColor: '#1a1a2e',
-    color: COLORS.text,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    fontSize: 13,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginRight: 6,
-  },
-  flujoValue: { fontSize: 13, fontWeight: '700', textAlign: 'right' },
-  hint: { textAlign: 'center', color: COLORS.textMuted, fontSize: 11, marginTop: 12 },
-});
+function makeStyles(C) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    content: { padding: 16, paddingTop: 52, paddingBottom: 40 },
+    title: { fontSize: 28, fontWeight: 'bold', color: C.text, marginBottom: 20 },
+    summaryCard: {
+      backgroundColor: C.card,
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: C.border,
+      marginBottom: 20,
+    },
+    summaryLabel: { fontSize: 12, color: C.textMuted, marginBottom: 4 },
+    summaryValue: { fontSize: 26, fontWeight: 'bold', marginBottom: 6 },
+    summaryHint: { fontSize: 11, color: C.textMuted },
+    headerRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      backgroundColor: C.border,
+      borderRadius: 8,
+      marginBottom: 4,
+    },
+    colHeader: { fontSize: 11, color: C.textMuted, fontWeight: '700', textTransform: 'uppercase' },
+    monthRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.card,
+      borderRadius: 10,
+      padding: 10,
+      marginBottom: 6,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    monthName: { fontSize: 13, fontWeight: '600', color: C.text },
+    input: {
+      backgroundColor: C.inputBg,
+      color: C.text,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      fontSize: 13,
+      borderWidth: 1,
+      borderColor: C.border,
+      marginRight: 6,
+    },
+    flujoValue: { fontSize: 13, fontWeight: '700', textAlign: 'right' },
+    hint: { textAlign: 'center', color: C.textMuted, fontSize: 11, marginTop: 12 },
+  });
+}

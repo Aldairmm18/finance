@@ -1,24 +1,36 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, TextInput, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadData, saveData } from '../utils/storage';
-import { COLORS, formatCOP, parseAmount } from '../utils/calculations';
+import { formatCOP, parseAmount } from '../utils/calculations';
+import { useTheme } from '../context/ThemeContext';
 
 function InputField({ label, value, onChangeText, suffix, hint }) {
+  const { colors: C } = useTheme();
   return (
-    <View style={s.fieldWrap}>
-      <Text style={s.fieldLabel}>{label}</Text>
-      {hint ? <Text style={s.fieldHint}>{hint}</Text> : null}
-      <View style={s.inputRow}>
+    <View style={{ marginBottom: 16 }}>
+      <Text style={{ fontSize: 14, color: C.text, fontWeight: '600', marginBottom: 4 }}>{label}</Text>
+      {hint ? <Text style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>{hint}</Text> : null}
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TextInput
-          style={s.input}
+          style={{
+            flex: 1,
+            backgroundColor: C.inputBg,
+            color: C.text,
+            borderRadius: 8,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            fontSize: 16,
+            borderWidth: 1,
+            borderColor: C.border,
+          }}
           value={value}
           onChangeText={onChangeText}
           keyboardType="numeric"
           placeholder="0"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={C.textMuted}
         />
-        {suffix ? <Text style={s.suffix}>{suffix}</Text> : null}
+        {suffix ? <Text style={{ fontSize: 16, color: C.textMuted, marginLeft: 10, fontWeight: '600' }}>{suffix}</Text> : null}
       </View>
     </View>
   );
@@ -28,6 +40,7 @@ export default function TranquilidadScreen() {
   const [fields, setFields] = useState({ gastosMensualesDeseados: '', rentabilidadAnual: '7', patrimonioActual: '' });
   const [fullData, setFullData] = useState(null);
   const saveTimer = useRef(null);
+  const { colors: C } = useTheme();
 
   useFocusEffect(
     useCallback(() => {
@@ -37,6 +50,8 @@ export default function TranquilidadScreen() {
       });
     }, [])
   );
+
+  const s = useMemo(() => makeStyles(C), [C]);
 
   const update = useCallback((key, value) => {
     const clean = value.replace(/[^0-9.]/g, '');
@@ -110,7 +125,7 @@ export default function TranquilidadScreen() {
         <View style={s.progressCard}>
           <View style={s.progressHeader}>
             <Text style={s.progressLabel}>Progreso hacia la libertad financiera</Text>
-            <Text style={[s.progressPct, { color: progreso >= 100 ? COLORS.teal : COLORS.purple }]}>
+            <Text style={[s.progressPct, { color: progreso >= 100 ? C.teal : C.purple }]}>
               {progreso.toFixed(1)}%
             </Text>
           </View>
@@ -118,27 +133,25 @@ export default function TranquilidadScreen() {
           <View style={s.progressBar}>
             <View style={[s.progressFill, {
               width: `${progreso}%`,
-              backgroundColor: progreso >= 100 ? COLORS.teal : COLORS.purple,
+              backgroundColor: progreso >= 100 ? C.teal : C.purple,
             }]} />
           </View>
 
           {progreso >= 100 ? (
-            <Text style={[s.statusText, { color: COLORS.teal }]}>
+            <Text style={[s.statusText, { color: C.teal }]}>
               ¡Lograste la libertad financiera! 🎉
             </Text>
           ) : (
-            <>
-              <View style={s.statsRow}>
-                <View style={s.statBox}>
-                  <Text style={s.statBoxLabel}>Patrimonio actual</Text>
-                  <Text style={[s.statBoxValue, { color: COLORS.purple }]}>{formatCOP(patrimonioActual)}</Text>
-                </View>
-                <View style={s.statBox}>
-                  <Text style={s.statBoxLabel}>Falta</Text>
-                  <Text style={[s.statBoxValue, { color: COLORS.pink }]}>{formatCOP(cuantoFalta)}</Text>
-                </View>
+            <View style={s.statsRow}>
+              <View style={s.statBox}>
+                <Text style={s.statBoxLabel}>Patrimonio actual</Text>
+                <Text style={[s.statBoxValue, { color: C.purple }]}>{formatCOP(patrimonioActual)}</Text>
               </View>
-            </>
+              <View style={s.statBox}>
+                <Text style={s.statBoxLabel}>Falta</Text>
+                <Text style={[s.statBoxValue, { color: C.pink }]}>{formatCOP(cuantoFalta)}</Text>
+              </View>
+            </View>
           )}
         </View>
       )}
@@ -150,78 +163,64 @@ export default function TranquilidadScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  content: { padding: 16, paddingTop: 52, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: 'bold', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 13, color: COLORS.textMuted, marginBottom: 20, lineHeight: 20 },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16,
-  },
-  fieldWrap: { marginBottom: 16 },
-  fieldLabel: { fontSize: 14, color: COLORS.text, fontWeight: '600', marginBottom: 4 },
-  fieldHint: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6 },
-  inputRow: { flexDirection: 'row', alignItems: 'center' },
-  input: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-    color: COLORS.text,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  suffix: { fontSize: 16, color: COLORS.textMuted, marginLeft: 10, fontWeight: '600' },
-  resultCard: {
-    backgroundColor: COLORS.purple + '20',
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: COLORS.purple + '50',
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  resultLabel: { fontSize: 13, color: COLORS.purple, marginBottom: 8, fontWeight: '600' },
-  resultValue: { fontSize: 32, fontWeight: 'bold', color: COLORS.text, marginBottom: 6 },
-  resultFormula: { fontSize: 12, color: COLORS.textMuted, fontStyle: 'italic' },
-  progressCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16,
-  },
-  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  progressLabel: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
-  progressPct: { fontSize: 22, fontWeight: 'bold' },
-  progressBar: {
-    height: 14,
-    backgroundColor: COLORS.border,
-    borderRadius: 7,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  progressFill: { height: '100%', borderRadius: 7 },
-  statsRow: { flexDirection: 'row', gap: 12 },
-  statBox: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-    borderRadius: 10,
-    padding: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  statBoxLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 6 },
-  statBoxValue: { fontSize: 16, fontWeight: 'bold' },
-  statusText: { textAlign: 'center', fontSize: 16, fontWeight: '700' },
-  hint: { textAlign: 'center', color: COLORS.textMuted, fontSize: 11, marginTop: 4, fontStyle: 'italic' },
-});
+function makeStyles(C) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    content: { padding: 16, paddingTop: 52, paddingBottom: 40 },
+    title: { fontSize: 28, fontWeight: 'bold', color: C.text, marginBottom: 8 },
+    subtitle: { fontSize: 13, color: C.textMuted, marginBottom: 20, lineHeight: 20 },
+    card: {
+      backgroundColor: C.card,
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: C.border,
+      marginBottom: 16,
+    },
+    resultCard: {
+      backgroundColor: C.purple + '20',
+      borderRadius: 12,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: C.purple + '50',
+      marginBottom: 16,
+      alignItems: 'center',
+    },
+    resultLabel: { fontSize: 13, color: C.purple, marginBottom: 8, fontWeight: '600' },
+    resultValue: { fontSize: 32, fontWeight: 'bold', color: C.text, marginBottom: 6 },
+    resultFormula: { fontSize: 12, color: C.textMuted, fontStyle: 'italic' },
+    progressCard: {
+      backgroundColor: C.card,
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: C.border,
+      marginBottom: 16,
+    },
+    progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    progressLabel: { fontSize: 14, color: C.text, fontWeight: '600' },
+    progressPct: { fontSize: 22, fontWeight: 'bold' },
+    progressBar: {
+      height: 14,
+      backgroundColor: C.border,
+      borderRadius: 7,
+      overflow: 'hidden',
+      marginBottom: 16,
+    },
+    progressFill: { height: '100%', borderRadius: 7 },
+    statsRow: { flexDirection: 'row', gap: 12 },
+    statBox: {
+      flex: 1,
+      backgroundColor: C.inputBg,
+      borderRadius: 10,
+      padding: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    statBoxLabel: { fontSize: 11, color: C.textMuted, marginBottom: 6 },
+    statBoxValue: { fontSize: 16, fontWeight: 'bold' },
+    statusText: { textAlign: 'center', fontSize: 16, fontWeight: '700' },
+    hint: { textAlign: 'center', color: C.textMuted, fontSize: 11, marginTop: 4, fontStyle: 'italic' },
+  });
+}
