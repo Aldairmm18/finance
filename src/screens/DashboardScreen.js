@@ -49,7 +49,7 @@ const INGRESOS_META = {
   otros:      { label: 'Otros',      color: '#94a3b8' },
 };
 
-const EXTRA_CATS = [
+const EXTRA_CATS_GASTO = [
   { key: 'hogar',           label: 'Hogar' },
   { key: 'comida',          label: 'Comida' },
   { key: 'transporte',      label: 'Transporte' },
@@ -58,6 +58,14 @@ const EXTRA_CATS = [
   { key: 'familia',         label: 'Familia' },
   { key: 'educacion',       label: 'Educacion' },
   { key: 'otros',           label: 'Otros' },
+];
+
+const EXTRA_CATS_INGRESO = [
+  { key: 'ingresos',    label: 'Salario' },
+  { key: 'bonos',       label: 'Bonos' },
+  { key: 'comisiones',  label: 'Comision' },
+  { key: 'dividendos',  label: 'Dividendos' },
+  { key: 'otros',       label: 'Otros' },
 ];
 
 // ─── Hook: count-up animado (easeOutCubic) ────────────────────────────────────
@@ -156,16 +164,21 @@ function EmptyState({ icon, text }) {
   );
 }
 
-// ─── ExtraFABModal: bottom sheet para registrar gasto extraordinario ──────────
+// ─── ExtraFABModal: bottom sheet para registrar gasto o ingreso extraordinario ─
 function ExtraFABModal({ visible, onClose, onSuccess }) {
   const { colors: C } = useTheme();
+  const [tipo, setTipo]               = useState('gasto');
   const [descripcion, setDescripcion] = useState('');
   const [monto, setMonto]             = useState('');
   const [categoria, setCategoria]     = useState('otros');
   const [error, setError]             = useState('');
   const [loading, setLoading]         = useState(false);
 
+  const cats = tipo === 'ingreso' ? EXTRA_CATS_INGRESO : EXTRA_CATS_GASTO;
+  const accentColor = tipo === 'ingreso' ? C.teal : C.pink;
+
   const reset = () => {
+    setTipo('gasto');
     setDescripcion('');
     setMonto('');
     setCategoria('otros');
@@ -176,6 +189,12 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
   const handleClose = () => {
     reset();
     onClose();
+  };
+
+  const handleTipoChange = (t) => {
+    setTipo(t);
+    setCategoria(t === 'ingreso' ? 'ingresos' : 'otros');
+    setError('');
   };
 
   const handleSubmit = async () => {
@@ -189,6 +208,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
         descripcion: descripcion.trim(),
         monto: montoNum,
         categoria,
+        tipo,
       });
       reset();
       onSuccess();
@@ -227,10 +247,10 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>
-                Gasto extraordinario
+                Transaccion extraordinaria
               </Text>
               <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
-                Registra un gasto fuera de tu presupuesto
+                Registra algo fuera de tu presupuesto
               </Text>
             </View>
             <TouchableOpacity onPress={handleClose} style={{ paddingLeft: 12, paddingBottom: 4 }}>
@@ -239,6 +259,26 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
           </View>
 
           <View style={{ height: 1, backgroundColor: C.border, marginVertical: 16 }} />
+
+          {/* Tipo toggle */}
+          <View style={{ flexDirection: 'row', backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.border, marginBottom: 16, overflow: 'hidden' }}>
+            {[{ key: 'gasto', label: 'Gasto', color: C.pink }, { key: 'ingreso', label: 'Ingreso', color: C.teal }].map(opt => (
+              <TouchableOpacity
+                key={opt.key}
+                onPress={() => handleTipoChange(opt.key)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                  backgroundColor: tipo === opt.key ? opt.color : 'transparent',
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: tipo === opt.key ? '#fff' : C.textMuted }}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {/* Descripcion */}
           <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
@@ -256,7 +296,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
               paddingVertical: 10,
               marginBottom: 14,
             }}
-            placeholder="Ej. Medico, Reparacion, Regalo..."
+            placeholder={tipo === 'ingreso' ? 'Ej. Freelance, Venta, Regalo...' : 'Ej. Medico, Reparacion, Regalo...'}
             placeholderTextColor={C.textMuted}
             value={descripcion}
             onChangeText={setDescripcion}
@@ -299,7 +339,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
             Categoria
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-            {EXTRA_CATS.map(cat => (
+            {cats.map(cat => (
               <TouchableOpacity
                 key={cat.key}
                 onPress={() => setCategoria(cat.key)}
@@ -307,9 +347,9 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
                   paddingHorizontal: 12,
                   paddingVertical: 6,
                   borderRadius: 20,
-                  backgroundColor: categoria === cat.key ? C.pink : C.bg,
+                  backgroundColor: categoria === cat.key ? accentColor : C.bg,
                   borderWidth: 1,
-                  borderColor: categoria === cat.key ? C.pink : C.border,
+                  borderColor: categoria === cat.key ? accentColor : C.border,
                 }}
               >
                 <Text style={{
@@ -333,7 +373,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
             onPress={handleSubmit}
             disabled={loading}
             style={{
-              backgroundColor: '#f472b6',
+              backgroundColor: accentColor,
               borderRadius: 12,
               paddingVertical: 14,
               alignItems: 'center',
@@ -343,7 +383,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.3 }}>
-                Guardar gasto
+                {tipo === 'ingreso' ? 'Guardar ingreso' : 'Guardar gasto'}
               </Text>
             )}
           </TouchableOpacity>
@@ -355,9 +395,10 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 export default function DashboardScreen() {
-  const [totals, setTotals]                   = useState(null);
-  const [extraordinarios, setExtraordinarios] = useState([]);
-  const [focusKey, setFocusKey]               = useState(0);
+  const [totals, setTotals]                     = useState(null);
+  const [extraordinarios, setExtraordinarios]   = useState([]);
+  const [extrasIngreso, setExtrasIngreso]       = useState([]);
+  const [focusKey, setFocusKey]                 = useState(0);
   const [fabVisible, setFabVisible]           = useState(false);
   const [cloudStatus, setCloudStatus]         = useState('idle'); // 'idle' | 'synced' | 'error'
   const { colors: C } = useTheme();
@@ -371,7 +412,9 @@ export default function DashboardScreen() {
       const [d, txs] = await Promise.all([loadData(), loadTransaccionesMes()]);
       const base = computeTotals(d);
       setTotals(mergeTransacciones(base, txs));
-      setExtraordinarios((txs || []).filter(tx => tx.es_extraordinario && tx.tipo === 'gasto'));
+      const extras = (txs || []).filter(tx => tx.es_extraordinario);
+      setExtraordinarios(extras.filter(tx => tx.tipo === 'gasto'));
+      setExtrasIngreso(extras.filter(tx => tx.tipo === 'ingreso'));
       setCloudStatus('synced');
       setFocusKey(k => k + 1);
       Animated.stagger(65, cardAnims.map(a =>
@@ -389,7 +432,9 @@ export default function DashboardScreen() {
   const refreshExtras = useCallback(async () => {
     try {
       const txs = await loadTransaccionesMes();
-      setExtraordinarios((txs || []).filter(tx => tx.es_extraordinario && tx.tipo === 'gasto'));
+      const extras = (txs || []).filter(tx => tx.es_extraordinario);
+      setExtraordinarios(extras.filter(tx => tx.tipo === 'gasto'));
+      setExtrasIngreso(extras.filter(tx => tx.tipo === 'ingreso'));
     } catch {
       // silencioso
     }
@@ -446,9 +491,13 @@ export default function DashboardScreen() {
 
   const cloudDotColor = cloudStatus === 'synced' ? '#34d399' : cloudStatus === 'error' ? '#f472b6' : C.border;
 
-  const totalExtras = extraordinarios.reduce((sum, ex) => sum + (ex.monto || 0), 0);
-  const visibleExtras = extraordinarios.slice(0, 4);
-  const hiddenCount   = extraordinarios.length - 4;
+  const totalExtrasGasto   = extraordinarios.reduce((sum, ex) => sum + (ex.monto || 0), 0);
+  const totalExtrasIngreso = extrasIngreso.reduce((sum, ex) => sum + (ex.monto || 0), 0);
+  const hasExtras          = extraordinarios.length > 0 || extrasIngreso.length > 0;
+  const visibleGastos      = extraordinarios.slice(0, 3);
+  const visibleIngresos    = extrasIngreso.slice(0, 2);
+  const hiddenGastos       = extraordinarios.length - visibleGastos.length;
+  const hiddenIngresos     = extrasIngreso.length - visibleIngresos.length;
 
   return (
     <View style={s.container}>
@@ -505,8 +554,8 @@ export default function DashboardScreen() {
           </View>
         </Animated.View>
 
-        {/* ── Gastos Extraordinarios (solo si hay) ── */}
-        {extraordinarios.length > 0 && (
+        {/* ── Extraordinarios (gastos e ingresos, solo si hay) ── */}
+        {hasExtras && (
           <Animated.View style={[
             { backgroundColor: C.card, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: C.border, marginBottom: 12 },
             {
@@ -516,35 +565,74 @@ export default function DashboardScreen() {
           ]}>
             <View style={{ height: 3, backgroundColor: '#f472b6' }} />
             <View style={{ padding: 16 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase' }}>
-                  Gastos Extraordinarios
-                </Text>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: '#f472b6' }}>
-                  {formatCOP(totalExtras)}
-                </Text>
-              </View>
-              {visibleExtras.map((ex, i) => (
-                <View key={ex.id ?? i} style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  paddingVertical: 7,
-                  borderBottomWidth: i < visibleExtras.length - 1 ? 1 : 0,
-                  borderColor: C.border,
-                }}>
-                  <Text style={{ fontSize: 13, color: C.text, flex: 1, marginRight: 8 }} numberOfLines={1}>
-                    {ex.descripcion || 'Sin descripcion'}
-                  </Text>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#f472b6' }}>
-                    {formatCOP(ex.monto || 0)}
-                  </Text>
-                </View>
-              ))}
-              {hiddenCount > 0 && (
-                <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 8, textAlign: 'right' }}>
-                  +{hiddenCount} mas este mes
-                </Text>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
+                Extraordinarios del mes
+              </Text>
+
+              {/* Gastos extraordinarios */}
+              {extraordinarios.length > 0 && (
+                <>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 12, color: C.textMuted }}>Gastos</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: C.pink }}>{formatCOP(totalExtrasGasto)}</Text>
+                  </View>
+                  {visibleGastos.map((ex, i) => (
+                    <View key={ex.id ?? i} style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingVertical: 6,
+                      paddingLeft: 8,
+                      borderBottomWidth: i < visibleGastos.length - 1 ? 1 : 0,
+                      borderColor: C.border,
+                    }}>
+                      <Text style={{ fontSize: 13, color: C.text, flex: 1, marginRight: 8 }} numberOfLines={1}>
+                        {ex.descripcion || 'Sin descripcion'}
+                      </Text>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: C.pink }}>
+                        -{formatCOP(ex.monto || 0)}
+                      </Text>
+                    </View>
+                  ))}
+                  {hiddenGastos > 0 && (
+                    <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 4, paddingLeft: 8 }}>
+                      +{hiddenGastos} mas
+                    </Text>
+                  )}
+                </>
+              )}
+
+              {/* Ingresos extraordinarios */}
+              {extrasIngreso.length > 0 && (
+                <>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, marginTop: extraordinarios.length > 0 ? 14 : 0 }}>
+                    <Text style={{ fontSize: 12, color: C.textMuted }}>Ingresos</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: C.teal }}>{formatCOP(totalExtrasIngreso)}</Text>
+                  </View>
+                  {visibleIngresos.map((ex, i) => (
+                    <View key={ex.id ?? i} style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingVertical: 6,
+                      paddingLeft: 8,
+                      borderBottomWidth: i < visibleIngresos.length - 1 ? 1 : 0,
+                      borderColor: C.border,
+                    }}>
+                      <Text style={{ fontSize: 13, color: C.text, flex: 1, marginRight: 8 }} numberOfLines={1}>
+                        {ex.descripcion || 'Sin descripcion'}
+                      </Text>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: C.teal }}>
+                        +{formatCOP(ex.monto || 0)}
+                      </Text>
+                    </View>
+                  ))}
+                  {hiddenIngresos > 0 && (
+                    <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 4, paddingLeft: 8 }}>
+                      +{hiddenIngresos} mas
+                    </Text>
+                  )}
+                </>
               )}
             </View>
           </Animated.View>

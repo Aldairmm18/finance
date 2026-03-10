@@ -282,14 +282,14 @@ export async function loadExtraordinarios() {
  * Registra un gasto extraordinario desde la app (FAB del Dashboard).
  * @throws Error si Supabase no está disponible
  */
-export async function registrarExtraordinario({ descripcion, monto, categoria }) {
+export async function registrarExtraordinario({ descripcion, monto, categoria, tipo = 'gasto' }) {
   if (!supabase) throw new Error('Sin conexión a Supabase');
   const today = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('transacciones')
     .insert({
       user_id:           USER_ID,
-      tipo:              'gasto',
+      tipo,
       monto,
       categoria,
       subcategoria:      'extraordinario',
