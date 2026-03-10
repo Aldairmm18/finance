@@ -2,8 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
 
 const STORAGE_KEY = '@finance_data_v1';
+const STORAGE_MES_PREFIX = '@finance_mes_v1';
 export const SYNC_KEY = '@finance_last_sync';
 const USER_ID = 'default';
+
+/** Retorna el mes actual en formato "YYYY-MM" */
+export function getCurrentMes() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
 
 // ─── Estructura de datos por defecto ─────────────────────────────────────────
 
@@ -174,6 +181,75 @@ export async function saveData(data) {
       .catch(() => {
         // Silencioso: la próxima carga o sync manual recuperará el estado
       });
+  }
+}
+
+/**
+ * Carga el presupuesto de un mes específico desde `presupuesto_mensual`.
+ * Si no existe registro para ese mes, copia el presupuesto base como punto de partida.
+ * @param {string} mes  Formato "YYYY-MM"
+ */
+export async function loadDataMes(mes) {
+  const localKey = `${STORAGE_MES_PREFIX}_${mes}`;
+
+  // 1. Intentar presupuesto_mensual en Supabase
+  if (supabase) {
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('presupuesto_mensual')
+          .select('datos')
+          .eq('user_id', USER_ID)
+          .eq('mes', mes)
+          .maybeSingle(),
+        6000,
+      );
+      if (!error && data?.datos) {
+        const merged = deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), data.datos);
+        await AsyncStorage.setItem(localKey, JSON.stringify(merged));
+        return merged;
+      }
+    } catch {
+      // offline → continúa
+    }
+  }
+
+  // 2. Caché local mensual
+  try {
+    const json = await AsyncStorage.getItem(localKey);
+    if (json) return deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), JSON.parse(json));
+  } catch {}
+
+  // 3. Sin registro mensual → usar presupuesto base como punto de partida (no guardar aún)
+  return loadData();
+}
+
+/**
+ * Guarda el presupuesto de un mes específico en `presupuesto_mensual`.
+ * @param {string} mes   Formato "YYYY-MM"
+ * @param {object} data  Datos del presupuesto
+ */
+export async function saveDataMes(mes, data) {
+  const localKey = `${STORAGE_MES_PREFIX}_${mes}`;
+
+  try {
+    await AsyncStorage.setItem(localKey, JSON.stringify(data));
+  } catch (e) {
+    console.error('[storage] Monthly local save failed:', e);
+  }
+
+  if (supabase) {
+    withTimeout(
+      supabase
+        .from('presupuesto_mensual')
+        .upsert(
+          { user_id: USER_ID, mes, datos: data, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id,mes' },
+        ),
+      8000,
+    )
+      .then(() => AsyncStorage.setItem(SYNC_KEY, new Date().toISOString()))
+      .catch(() => {});
   }
 }
 

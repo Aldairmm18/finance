@@ -22,7 +22,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
 import {
-  loadData,
+  loadDataMes,
+  getCurrentMes,
   loadTransaccionesMes,
   registrarExtraordinario,
 } from '../utils/storage';
@@ -409,7 +410,7 @@ export default function DashboardScreen() {
   const reload = useCallback(async () => {
     cardAnims.forEach(a => a.setValue(0));
     try {
-      const [d, txs] = await Promise.all([loadData(), loadTransaccionesMes()]);
+      const [d, txs] = await Promise.all([loadDataMes(getCurrentMes()), loadTransaccionesMes()]);
       const base = computeTotals(d);
       setTotals(mergeTransacciones(base, txs));
       const extras = (txs || []).filter(tx => tx.es_extraordinario);

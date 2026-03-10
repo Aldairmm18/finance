@@ -4,7 +4,7 @@ import {
   StyleSheet, Modal, LayoutAnimation, UIManager, Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { loadData, saveData } from '../utils/storage';
+import { loadDataMes, saveDataMes, getCurrentMes } from '../utils/storage';
 import { PERIODICIDADES, formatCOP, toMonthly, toAnnual, parseAmount } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 
@@ -311,23 +311,41 @@ function SectionHeader({ icon, label, total, expanded, onPress }) {
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
+/** Utilidades de navegación de meses */
+function mesLabel(mes) {
+  const [y, m] = mes.split('-');
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  const str = d.toLocaleString('es-CO', { month: 'long', year: 'numeric' });
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+function addMes(mes, delta) {
+  const [y, m] = mes.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function PresupuestoScreen() {
+  const [mes, setMes]           = useState(getCurrentMes);
   const [data, setData]         = useState(null);
   const [expanded, setExpanded] = useState({ ingresos: true });
   const [periodModal, setPeriodModal] = useState({ visible: false, current: 'mensual', onSelect: () => {} });
   const saveTimer = useRef(null);
   const { colors: C } = useTheme();
 
+  const currentMes = getCurrentMes();
+  const isFuture   = mes > currentMes;
+
   useFocusEffect(useCallback(() => {
-    loadData().then(d => setData(d));
-  }, []));
+    setData(null);
+    loadDataMes(mes).then(d => setData(d));
+  }, [mes]));
 
   const s = useMemo(() => makeStyles(C), [C]);
 
   const debouncedSave = useCallback((newData) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveData(newData), 600);
-  }, []);
+    saveTimer.current = setTimeout(() => saveDataMes(mes, newData), 600);
+  }, [mes]);
 
   const openPeriodModal = useCallback((current, onSelect) => {
     setPeriodModal({ visible: true, current, onSelect });
@@ -388,6 +406,34 @@ export default function PresupuestoScreen() {
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <Text style={s.title}>Presupuesto</Text>
+
+      {/* ── Navegador de mes ── */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingVertical: 10, paddingHorizontal: 6 }}>
+        <TouchableOpacity onPress={() => setMes(m => addMes(m, -1))} style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
+          <Text style={{ fontSize: 18, color: C.textMuted }}>‹</Text>
+        </TouchableOpacity>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: C.text }}>{mesLabel(mes)}</Text>
+          {mes === currentMes && (
+            <View style={{ backgroundColor: C.teal + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginTop: 3 }}>
+              <Text style={{ fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 0.8 }}>MES ACTUAL</Text>
+            </View>
+          )}
+          {mes < currentMes && (
+            <View style={{ backgroundColor: C.textMuted + '20', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginTop: 3 }}>
+              <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 0.8 }}>MES PASADO</Text>
+            </View>
+          )}
+          {isFuture && (
+            <View style={{ backgroundColor: C.purple + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginTop: 3 }}>
+              <Text style={{ fontSize: 10, color: C.purple, fontWeight: '700', letterSpacing: 0.8 }}>MES FUTURO</Text>
+            </View>
+          )}
+        </View>
+        <TouchableOpacity onPress={() => setMes(m => addMes(m, 1))} style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
+          <Text style={{ fontSize: 18, color: C.textMuted }}>›</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* ── Ingresos ── */}
       <View style={s.section}>
@@ -453,7 +499,7 @@ export default function PresupuestoScreen() {
         )}
       </View>
 
-      <Text style={s.autoSaveNote}>Los cambios se guardan automáticamente</Text>
+      <Text style={s.autoSaveNote}>Los cambios de {mesLabel(mes)} se guardan automáticamente</Text>
 
       <PeriodicidadModal
         visible={periodModal.visible}
