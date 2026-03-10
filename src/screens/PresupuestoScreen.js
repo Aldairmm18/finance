@@ -49,11 +49,13 @@ const EXPENSE_CATEGORIES = [
   {
     key: 'transporte', label: 'Transporte', icon: '🚗',
     items: [
-      { key: 'gasolina',          label: 'Gasolina'           },
-      { key: 'taxiUber',          label: 'Taxi / Uber'        },
-      { key: 'mantenimientoAuto', label: 'Mantenimiento auto' },
-      { key: 'seguroAuto',        label: 'Seguro auto'        },
-      { key: 'otro',              label: 'Otro'               },
+      { key: 'gasolina',          label: 'Gasolina'            },
+      { key: 'taxiUber',          label: 'Taxi / Uber'         },
+      { key: 'transportePublico', label: 'Transporte público'  },
+      { key: 'metro',             label: 'Metro'               },
+      { key: 'mantenimientoAuto', label: 'Mantenimiento auto'  },
+      { key: 'seguroAuto',        label: 'Seguro auto'         },
+      { key: 'otro',              label: 'Otro'                },
     ],
   },
   {
@@ -68,11 +70,13 @@ const EXPENSE_CATEGORIES = [
   {
     key: 'entretenimiento', label: 'Entretenimiento', icon: '🎉',
     items: [
-      { key: 'viajes',      label: 'Viajes'      },
-      { key: 'restaurantes',label: 'Restaurantes' },
-      { key: 'diversion',   label: 'Diversión'   },
-      { key: 'fiesta',      label: 'Fiesta'       },
-      { key: 'otros',       label: 'Otros'        },
+      { key: 'viajes',      label: 'Viajes'                   },
+      { key: 'restaurantes',label: 'Restaurantes'              },
+      { key: 'diversion',   label: 'Diversión'                },
+      { key: 'fiesta',      label: 'Fiesta'                   },
+      { key: 'appleMusic',  label: 'Apple Music'              },
+      { key: 'ia',          label: 'IA / ChatGPT'             },
+      { key: 'otros',       label: 'Otros'                    },
     ],
   },
   {

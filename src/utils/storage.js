@@ -35,6 +35,8 @@ export const DEFAULT_DATA = {
     transporte: {
       gasolina:          { monto: '', periodicidad: 'mensual', esencial: true  },
       taxiUber:          { monto: '', periodicidad: 'mensual', esencial: true  },
+      transportePublico: { monto: '', periodicidad: 'mensual', esencial: true  },
+      metro:             { monto: '', periodicidad: 'mensual', esencial: true  },
       mantenimientoAuto: { monto: '', periodicidad: 'mensual', esencial: false },
       seguroAuto:        { monto: '', periodicidad: 'mensual', esencial: true  },
       otro:              { monto: '', periodicidad: 'mensual', esencial: false },
@@ -50,6 +52,8 @@ export const DEFAULT_DATA = {
       restaurantes: { monto: '', periodicidad: 'mensual', esencial: false },
       diversion:    { monto: '', periodicidad: 'mensual', esencial: false },
       fiesta:       { monto: '', periodicidad: 'mensual', esencial: false },
+      appleMusic:   { monto: '', periodicidad: 'mensual', esencial: false },
+      ia:           { monto: '', periodicidad: 'mensual', esencial: false },
       otros:        { monto: '', periodicidad: 'mensual', esencial: false },
     },
     familia: {
@@ -213,4 +217,60 @@ export async function getLastSync() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Carga gastos extraordinarios del mes actual desde Supabase.
+ * Retorna [] si Supabase no está disponible o hay error de red.
+ */
+export async function loadExtraordinarios() {
+  if (!supabase) return [];
+  try {
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      .toISOString().split('T')[0];
+    const today = now.toISOString().split('T')[0];
+
+    const { data, error } = await withTimeout(
+      supabase
+        .from('transacciones')
+        .select('*')
+        .eq('user_id', USER_ID)
+        .eq('es_extraordinario', true)
+        .gte('fecha', start)
+        .lte('fecha', today)
+        .order('fecha', { ascending: false }),
+      6000,
+    );
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Registra un gasto extraordinario desde la app (FAB del Dashboard).
+ * @throws Error si Supabase no está disponible
+ */
+export async function registrarExtraordinario({ descripcion, monto, categoria }) {
+  if (!supabase) throw new Error('Sin conexión a Supabase');
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('transacciones')
+    .insert({
+      user_id:           USER_ID,
+      tipo:              'gasto',
+      monto,
+      categoria,
+      subcategoria:      'extraordinario',
+      descripcion,
+      fecha:             today,
+      fuente:            'app',
+      es_extraordinario: true,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }
