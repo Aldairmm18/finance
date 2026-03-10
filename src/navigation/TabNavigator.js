@@ -6,7 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import DashboardScreen from '../screens/DashboardScreen';
 import PresupuestoScreen from '../screens/PresupuestoScreen';
 import ResumenMesScreen from '../screens/ResumenMesScreen';
-import TranquilidadScreen from '../screens/TranquilidadScreen';
+import GastosScreen from '../screens/GastosScreen';
 import ConfigScreen from '../screens/ConfigScreen';
 
 const Tab = createBottomTabNavigator();
@@ -15,7 +15,7 @@ const ICONS = {
   Dashboard:   'grid-outline',
   Presupuesto: 'wallet-outline',
   ResumenMes:  'bar-chart-outline',
-  Tranquilidad:'leaf-outline',
+  Gastos:      'receipt-outline',
   Config:      'settings-outline',
 };
 
@@ -42,11 +42,11 @@ export default function TabNavigator() {
         ),
       })}
     >
-      <Tab.Screen name="Dashboard"    component={DashboardScreen}   options={{ tabBarLabel: 'Dashboard'   }} />
-      <Tab.Screen name="Presupuesto"  component={PresupuestoScreen} options={{ tabBarLabel: 'Presupuesto' }} />
-      <Tab.Screen name="ResumenMes"   component={ResumenMesScreen}  options={{ tabBarLabel: 'Resumen'     }} />
-      <Tab.Screen name="Tranquilidad" component={TranquilidadScreen}options={{ tabBarLabel: 'Tranquilidad'}} />
-      <Tab.Screen name="Config"       component={ConfigScreen}      options={{ tabBarLabel: 'Config'      }} />
+      <Tab.Screen name="Dashboard"   component={DashboardScreen}  options={{ tabBarLabel: 'Dashboard'  }} />
+      <Tab.Screen name="Presupuesto" component={PresupuestoScreen} options={{ tabBarLabel: 'Presupuesto'}} />
+      <Tab.Screen name="ResumenMes"  component={ResumenMesScreen}  options={{ tabBarLabel: 'Resumen'    }} />
+      <Tab.Screen name="Gastos"      component={GastosScreen}      options={{ tabBarLabel: 'Gastos'     }} />
+      <Tab.Screen name="Config"      component={ConfigScreen}      options={{ tabBarLabel: 'Config'     }} />
     </Tab.Navigator>
   );
 }

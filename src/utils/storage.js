@@ -296,16 +296,17 @@ export async function getLastSync() {
 }
 
 /**
- * Carga TODAS las transacciones del mes actual desde Supabase (bot + app).
+ * Carga TODAS las transacciones de un mes específico desde Supabase.
+ * @param {string} mes  Formato "YYYY-MM". Default: mes actual.
  * Retorna [] si Supabase no está disponible.
  */
-export async function loadTransaccionesMes() {
+export async function loadTransaccionesMes(mes) {
   if (!supabase) return [];
   try {
-    const now   = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-      .toISOString().split('T')[0];
-    const today = now.toISOString().split('T')[0];
+    const m     = mes || getCurrentMes();
+    const [y, month] = m.split('-').map(Number);
+    const start = new Date(y, month - 1, 1).toISOString().split('T')[0];
+    const end   = new Date(y, month, 0).toISOString().split('T')[0]; // último día del mes
 
     const { data, error } = await withTimeout(
       supabase
@@ -313,7 +314,7 @@ export async function loadTransaccionesMes() {
         .select('*')
         .eq('user_id', USER_ID)
         .gte('fecha', start)
-        .lte('fecha', today)
+        .lte('fecha', end)
         .order('fecha', { ascending: false }),
       6000,
     );
