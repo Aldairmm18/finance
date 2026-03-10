@@ -160,19 +160,26 @@ KEYWORD_MAP = {
     'predial':          ('familia', 'impuestos'),
 
     # ── Ingresos ───────────────────────────────────────────────────────────────
-    'salario':          ('ingresos', 'salario'),
-    'sueldo':           ('ingresos', 'salario'),
-    'pago':             ('ingresos', 'salario'),
-    'quincena':         ('ingresos', 'salario'),
-    'nomina':           ('ingresos', 'salario'),
-    'nómina':           ('ingresos', 'salario'),
-    'bono':             ('ingresos', 'bonos'),
-    'prima':            ('ingresos', 'bonos'),
-    'comision':         ('ingresos', 'comisiones'),
-    'comisión':         ('ingresos', 'comisiones'),
-    'dividendo':        ('ingresos', 'dividendos'),
-    'freelance':        ('ingresos', 'otros'),
-    'venta':            ('ingresos', 'otros'),
+    'salario':          ('salario', 'salario'),
+    'sueldo':           ('salario', 'salario'),
+    'pago':             ('salario', 'salario'),
+    'quincena':         ('salario', 'salario'),
+    'nomina':           ('salario', 'salario'),
+    'nómina':           ('salario', 'salario'),
+    'bono':             ('bonos', 'bonos'),
+    'prima':            ('bonos', 'bonos'),
+    'comision':         ('comisiones', 'comisiones'),
+    'comisión':         ('comisiones', 'comisiones'),
+    'dividendo':        ('dividendos', 'dividendos'),
+    'freelance':        ('otros', 'otros'),
+    'venta':            ('otros', 'otros'),
+    'ahorro':           ('ahorro', 'ahorro'),
+    'rendimiento':      ('ahorro', 'rendimiento'),
+    'intereses':        ('ahorro', 'intereses'),
+    'devolucion':       ('otros', 'devolucion'),
+    'devolución':       ('otros', 'devolucion'),
+    'reembolso':        ('otros', 'reembolso'),
+    'reintegro':        ('otros', 'reintegro'),
 }
 
 # Palabras que indican explícitamente que es un INGRESO
@@ -180,7 +187,13 @@ INGRESO_KEYWORDS = {
     'salario', 'sueldo', 'pago', 'quincena', 'nomina', 'nómina',
     'bono', 'prima', 'comision', 'comisión', 'dividendo', 'freelance',
     'venta', 'gané', 'gane', 'ingreso', 'cobré', 'cobre', 'recibí', 'recibi',
-    'me pagaron', 'pagaron',
+    'me pagaron', 'pagaron', 'devolucion', 'devolución', 'reembolso',
+    'reintegro', 'ahorro', 'rendimiento', 'intereses',
+}
+
+# Categorías que son de ingreso (no de gasto)
+INGRESO_CATEGORIES = {
+    'salario', 'bonos', 'comisiones', 'dividendos', 'ahorro',
 }
 
 # Etiquetas legibles para la UI del bot
@@ -191,8 +204,14 @@ CATEGORY_LABELS = {
     'creditos':         'Créditos',
     'entretenimiento':  'Entretenimiento',
     'familia':          'Familia',
+    'salario':          'Salario',
+    'bonos':            'Bonos',
+    'comisiones':       'Comisiones',
+    'dividendos':       'Dividendos',
+    'ahorro':           'Ahorro',
     'ingresos':         'Ingresos',
     'otro':             'Otro',
+    'otros':            'Otros',
 }
 
 SUBCATEGORY_LABELS = {

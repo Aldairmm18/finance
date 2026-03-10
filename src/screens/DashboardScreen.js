@@ -34,39 +34,53 @@ import { useRealtimeSync } from '../hooks/useRealtimeSync';
 const screenWidth = Dimensions.get('window').width;
 
 const GASTOS_META = {
-  hogar:           { label: 'Hogar',           color: '#818cf8' },
-  comida:          { label: 'Comida',           color: '#2dd4bf' },
-  transporte:      { label: 'Transporte',       color: '#f59e0b' },
-  creditos:        { label: 'Creditos',         color: '#f472b6' },
-  entretenimiento: { label: 'Entretenimiento',  color: '#60a5fa' },
-  familia:         { label: 'Familia',          color: '#34d399' },
+  hogar: { label: 'Hogar', color: '#818cf8' },
+  comida: { label: 'Comida', color: '#2dd4bf' },
+  transporte: { label: 'Transporte', color: '#f59e0b' },
+  creditos: { label: 'Creditos', color: '#f472b6' },
+  entretenimiento: { label: 'Entretenimiento', color: '#60a5fa' },
+  familia: { label: 'Familia', color: '#34d399' },
 };
 
 const INGRESOS_META = {
-  salario:    { label: 'Salario',    color: '#2dd4bf' },
-  bonos:      { label: 'Bonos',      color: '#818cf8' },
+  salario: { label: 'Salario', color: '#2dd4bf' },
+  bonos: { label: 'Bonos', color: '#818cf8' },
   dividendos: { label: 'Dividendos', color: '#f472b6' },
   comisiones: { label: 'Comisiones', color: '#60a5fa' },
-  otros:      { label: 'Otros',      color: '#94a3b8' },
+  hogar: { label: 'Hogar', color: '#a78bfa' },
+  comida: { label: 'Comida', color: '#34d399' },
+  transporte: { label: 'Transporte', color: '#f59e0b' },
+  creditos: { label: 'Créditos', color: '#fb7185' },
+  entretenimiento: { label: 'Entretenimiento', color: '#38bdf8' },
+  familia: { label: 'Familia', color: '#4ade80' },
+  ahorro: { label: 'Ahorro', color: '#fbbf24' },
+  otros: { label: 'Otros', color: '#94a3b8' },
 };
 
 const EXTRA_CATS_GASTO = [
-  { key: 'hogar',           label: 'Hogar' },
-  { key: 'comida',          label: 'Comida' },
-  { key: 'transporte',      label: 'Transporte' },
-  { key: 'salud',           label: 'Salud' },
+  { key: 'hogar', label: 'Hogar' },
+  { key: 'comida', label: 'Comida' },
+  { key: 'transporte', label: 'Transporte' },
+  { key: 'salud', label: 'Salud' },
   { key: 'entretenimiento', label: 'Entretenimiento' },
-  { key: 'familia',         label: 'Familia' },
-  { key: 'educacion',       label: 'Educacion' },
-  { key: 'otros',           label: 'Otros' },
+  { key: 'familia', label: 'Familia' },
+  { key: 'educacion', label: 'Educacion' },
+  { key: 'otros', label: 'Otros' },
 ];
 
 const EXTRA_CATS_INGRESO = [
-  { key: 'ingresos',    label: 'Salario' },
-  { key: 'bonos',       label: 'Bonos' },
-  { key: 'comisiones',  label: 'Comision' },
-  { key: 'dividendos',  label: 'Dividendos' },
-  { key: 'otros',       label: 'Otros' },
+  { key: 'salario', label: 'Salario' },
+  { key: 'bonos', label: 'Bonos' },
+  { key: 'comisiones', label: 'Comisión' },
+  { key: 'dividendos', label: 'Dividendos' },
+  { key: 'hogar', label: 'Hogar' },
+  { key: 'comida', label: 'Comida' },
+  { key: 'transporte', label: 'Transporte' },
+  { key: 'creditos', label: 'Créditos' },
+  { key: 'entretenimiento', label: 'Entretenimiento' },
+  { key: 'familia', label: 'Familia' },
+  { key: 'ahorro', label: 'Ahorro' },
+  { key: 'otros', label: 'Otros' },
 ];
 
 // ─── Hook: count-up animado (easeOutCubic) ────────────────────────────────────
@@ -168,12 +182,12 @@ function EmptyState({ icon, text }) {
 // ─── ExtraFABModal: bottom sheet para registrar gasto o ingreso extraordinario ─
 function ExtraFABModal({ visible, onClose, onSuccess }) {
   const { colors: C } = useTheme();
-  const [tipo, setTipo]               = useState('gasto');
+  const [tipo, setTipo] = useState('gasto');
   const [descripcion, setDescripcion] = useState('');
-  const [monto, setMonto]             = useState('');
-  const [categoria, setCategoria]     = useState('otros');
-  const [error, setError]             = useState('');
-  const [loading, setLoading]         = useState(false);
+  const [monto, setMonto] = useState('');
+  const [categoria, setCategoria] = useState('otros');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const cats = tipo === 'ingreso' ? EXTRA_CATS_INGRESO : EXTRA_CATS_GASTO;
   const accentColor = tipo === 'ingreso' ? C.teal : C.pink;
@@ -194,7 +208,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
 
   const handleTipoChange = (t) => {
     setTipo(t);
-    setCategoria(t === 'ingreso' ? 'ingresos' : 'otros');
+    setCategoria(t === 'ingreso' ? 'salario' : 'otros');
     setError('');
   };
 
@@ -396,12 +410,12 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 export default function DashboardScreen() {
-  const [totals, setTotals]                     = useState(null);
-  const [extraordinarios, setExtraordinarios]   = useState([]);
-  const [extrasIngreso, setExtrasIngreso]       = useState([]);
-  const [focusKey, setFocusKey]                 = useState(0);
-  const [fabVisible, setFabVisible]           = useState(false);
-  const [cloudStatus, setCloudStatus]         = useState('idle'); // 'idle' | 'synced' | 'error'
+  const [totals, setTotals] = useState(null);
+  const [extraordinarios, setExtraordinarios] = useState([]);
+  const [extrasIngreso, setExtrasIngreso] = useState([]);
+  const [focusKey, setFocusKey] = useState(0);
+  const [fabVisible, setFabVisible] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState('idle'); // 'idle' | 'synced' | 'error'
   const { colors: C } = useTheme();
 
   // 9 animated values: 4 stat cards + fondo card + 3 chart cards + extraordinary card
@@ -445,11 +459,11 @@ export default function DashboardScreen() {
 
   const s = useMemo(() => makeStyles(C), [C]);
 
-  const animIngresos    = useCountUp(totals?.ingresosMonthly      ?? 0, focusKey);
-  const animGastos      = useCountUp(totals?.totalGastosMonthly   ?? 0, focusKey);
-  const animFlujo       = useCountUp(totals?.flujoCaja            ?? 0, focusKey);
-  const animFlujoAhorro = useCountUp(totals?.flujoCajaConAhorro   ?? 0, focusKey);
-  const animFondo       = useCountUp(totals?.fondoEmergencia      ?? 0, focusKey);
+  const animIngresos = useCountUp(totals?.ingresosMonthly ?? 0, focusKey);
+  const animGastos = useCountUp(totals?.totalGastosMonthly ?? 0, focusKey);
+  const animFlujo = useCountUp(totals?.flujoCaja ?? 0, focusKey);
+  const animFlujoAhorro = useCountUp(totals?.flujoCajaConAhorro ?? 0, focusKey);
+  const animFondo = useCountUp(totals?.fondoEmergencia ?? 0, focusKey);
 
   if (!totals) {
     return (
@@ -460,7 +474,7 @@ export default function DashboardScreen() {
     );
   }
 
-  const flujoCajaColor   = totals.flujoCaja >= 0          ? C.teal : C.pink;
+  const flujoCajaColor = totals.flujoCaja >= 0 ? C.teal : C.pink;
   const flujoAhorroColor = totals.flujoCajaConAhorro >= 0 ? C.teal : C.pink;
 
   const gastosChartData = Object.entries(GASTOS_META)
@@ -472,9 +486,9 @@ export default function DashboardScreen() {
     .filter(d => d.population > 0);
 
   const tipoGastoData = [
-    { name: 'Esenciales',    population: Math.round(totals.esencialesMonthly),   color: C.teal,   legendFontColor: C.text, legendFontSize: 11 },
-    { name: 'No Esenciales', population: Math.round(totals.noEsencialesMonthly), color: C.pink,   legendFontColor: C.text, legendFontSize: 11 },
-    { name: 'Creditos',      population: Math.round(totals.creditosMonthly),     color: C.purple, legendFontColor: C.text, legendFontSize: 11 },
+    { name: 'Esenciales', population: Math.round(totals.esencialesMonthly), color: C.teal, legendFontColor: C.text, legendFontSize: 11 },
+    { name: 'No Esenciales', population: Math.round(totals.noEsencialesMonthly), color: C.pink, legendFontColor: C.text, legendFontSize: 11 },
+    { name: 'Creditos', population: Math.round(totals.creditosMonthly), color: C.purple, legendFontColor: C.text, legendFontSize: 11 },
   ].filter(d => d.population > 0);
 
   const chartWidth = screenWidth - 64;
@@ -492,13 +506,13 @@ export default function DashboardScreen() {
 
   const cloudDotColor = cloudStatus === 'synced' ? '#34d399' : cloudStatus === 'error' ? '#f472b6' : C.border;
 
-  const totalExtrasGasto   = extraordinarios.reduce((sum, ex) => sum + (ex.monto || 0), 0);
+  const totalExtrasGasto = extraordinarios.reduce((sum, ex) => sum + (ex.monto || 0), 0);
   const totalExtrasIngreso = extrasIngreso.reduce((sum, ex) => sum + (ex.monto || 0), 0);
-  const hasExtras          = extraordinarios.length > 0 || extrasIngreso.length > 0;
-  const visibleGastos      = extraordinarios.slice(0, 3);
-  const visibleIngresos    = extrasIngreso.slice(0, 2);
-  const hiddenGastos       = extraordinarios.length - visibleGastos.length;
-  const hiddenIngresos     = extrasIngreso.length - visibleIngresos.length;
+  const hasExtras = extraordinarios.length > 0 || extrasIngreso.length > 0;
+  const visibleGastos = extraordinarios.slice(0, 3);
+  const visibleIngresos = extrasIngreso.slice(0, 2);
+  const hiddenGastos = extraordinarios.length - visibleGastos.length;
+  const hiddenIngresos = extrasIngreso.length - visibleIngresos.length;
 
   return (
     <View style={s.container}>
@@ -526,13 +540,13 @@ export default function DashboardScreen() {
         {/* ── Fila 1: Ingresos + Gastos ── */}
         <View style={s.row}>
           <StatCard label="Ingresos Mensuales" value={formatCOP(animIngresos)} sub={formatCOP(totals.ingresosAnual) + ' al año'} accentColor={C.teal} animVal={cardAnims[0]} half />
-          <StatCard label="Gastos Mensuales"   value={formatCOP(animGastos)}   sub={formatCOP(totals.totalGastosAnual) + ' al año'} accentColor={C.pink} animVal={cardAnims[1]} half />
+          <StatCard label="Gastos Mensuales" value={formatCOP(animGastos)} sub={formatCOP(totals.totalGastosAnual) + ' al año'} accentColor={C.pink} animVal={cardAnims[1]} half />
         </View>
 
         {/* ── Fila 2: Flujos ── */}
         <View style={s.row}>
-          <StatCard label="Flujo de Caja" value={formatCOP(animFlujo)}       sub={formatCOP(totals.flujoCajaAnual) + ' al año'}           accentColor={flujoCajaColor}   animVal={cardAnims[2]} half />
-          <StatCard label="Con Ahorro"    value={formatCOP(animFlujoAhorro)} sub={formatCOP(totals.flujoCajaConAhorroAnual) + ' al año'} accentColor={flujoAhorroColor} animVal={cardAnims[3]} half />
+          <StatCard label="Flujo de Caja" value={formatCOP(animFlujo)} sub={formatCOP(totals.flujoCajaAnual) + ' al año'} accentColor={flujoCajaColor} animVal={cardAnims[2]} half />
+          <StatCard label="Con Ahorro" value={formatCOP(animFlujoAhorro)} sub={formatCOP(totals.flujoCajaConAhorroAnual) + ' al año'} accentColor={flujoAhorroColor} animVal={cardAnims[3]} half />
         </View>
 
         {/* ── Fondo de Emergencia ── */}
@@ -699,25 +713,25 @@ export default function DashboardScreen() {
 function makeStyles(C) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg },
-    content:   { padding: 16, paddingTop: 52, paddingBottom: 100 },
+    content: { padding: 16, paddingTop: 52, paddingBottom: 100 },
 
     // Header
-    header:        { marginBottom: 24 },
-    title:         { fontSize: 32, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
-    subtitle:      { fontSize: 13, color: C.textMuted, marginTop: 4, fontWeight: '500' },
+    header: { marginBottom: 24 },
+    title: { fontSize: 32, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+    subtitle: { fontSize: 13, color: C.textMuted, marginTop: 4, fontWeight: '500' },
     headerDivider: { height: 1, marginTop: 18 },
 
     // Stat rows
     row: { flexDirection: 'row', gap: 10, marginBottom: 2 },
 
     // Fondo de Emergencia
-    fondoCard:   { borderRadius: 14, borderWidth: 1, marginBottom: 20, marginTop: 8, overflow: 'hidden' },
+    fondoCard: { borderRadius: 14, borderWidth: 1, marginBottom: 20, marginTop: 8, overflow: 'hidden' },
     fondoAccent: { height: 3 },
-    fondoBody:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, gap: 12 },
-    fondoLeft:   { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-    fondoIcon:   { fontSize: 22 },
-    fondoLabel:  { fontSize: 13, fontWeight: '700', marginBottom: 2 },
-    fondoSub:    { fontSize: 11 },
-    fondoValue:  { fontSize: 19, fontWeight: '800', letterSpacing: -0.5, flexShrink: 0 },
+    fondoBody: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, gap: 12 },
+    fondoLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+    fondoIcon: { fontSize: 22 },
+    fondoLabel: { fontSize: 13, fontWeight: '700', marginBottom: 2 },
+    fondoSub: { fontSize: 11 },
+    fondoValue: { fontSize: 19, fontWeight: '800', letterSpacing: -0.5, flexShrink: 0 },
   });
 }

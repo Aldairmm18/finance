@@ -16,80 +16,87 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // ─── Metadata ────────────────────────────────────────────────────────────────
 
 const INCOME_ITEMS = [
-  { key: 'salario',    label: 'Salario'    },
-  { key: 'bonos',      label: 'Bonos'      },
+  { key: 'salario', label: 'Salario' },
+  { key: 'bonos', label: 'Bonos' },
   { key: 'dividendos', label: 'Dividendos' },
   { key: 'comisiones', label: 'Comisiones' },
-  { key: 'otros',      label: 'Otros'      },
+  { key: 'hogar', label: 'Hogar' },
+  { key: 'comida', label: 'Comida' },
+  { key: 'transporte', label: 'Transporte' },
+  { key: 'creditos', label: 'Créditos' },
+  { key: 'entretenimiento', label: 'Entretenimiento' },
+  { key: 'familia', label: 'Familia' },
+  { key: 'ahorro', label: 'Ahorro' },
+  { key: 'otros', label: 'Otros' },
 ];
 
 const EXPENSE_CATEGORIES = [
   {
     key: 'hogar', label: 'Hogar', icon: '🏠',
     items: [
-      { key: 'arriendo',      label: 'Arriendo'       },
-      { key: 'administracion',label: 'Administración'  },
-      { key: 'luz',           label: 'Luz'             },
-      { key: 'agua',          label: 'Agua'            },
-      { key: 'gas',           label: 'Gas'             },
-      { key: 'telefono',      label: 'Teléfono'        },
-      { key: 'internet',      label: 'Internet'        },
-      { key: 'tv',            label: 'TV'              },
-      { key: 'otro',          label: 'Otro'            },
+      { key: 'arriendo', label: 'Arriendo' },
+      { key: 'administracion', label: 'Administración' },
+      { key: 'luz', label: 'Luz' },
+      { key: 'agua', label: 'Agua' },
+      { key: 'gas', label: 'Gas' },
+      { key: 'telefono', label: 'Teléfono' },
+      { key: 'internet', label: 'Internet' },
+      { key: 'tv', label: 'TV' },
+      { key: 'otro', label: 'Otro' },
     ],
   },
   {
     key: 'comida', label: 'Comida', icon: '🍽️',
     items: [
-      { key: 'mercado',      label: 'Mercado'          },
-      { key: 'comidasFuera', label: 'Comidas por fuera'},
-      { key: 'otro',         label: 'Otro'             },
+      { key: 'mercado', label: 'Mercado' },
+      { key: 'comidasFuera', label: 'Comidas por fuera' },
+      { key: 'otro', label: 'Otro' },
     ],
   },
   {
     key: 'transporte', label: 'Transporte', icon: '🚗',
     items: [
-      { key: 'gasolina',          label: 'Gasolina'            },
-      { key: 'taxiUber',          label: 'Taxi / Uber'         },
-      { key: 'transportePublico', label: 'Transporte público'  },
-      { key: 'metro',             label: 'Metro'               },
-      { key: 'mantenimientoAuto', label: 'Mantenimiento auto'  },
-      { key: 'seguroAuto',        label: 'Seguro auto'         },
-      { key: 'otro',              label: 'Otro'                },
+      { key: 'gasolina', label: 'Gasolina' },
+      { key: 'taxiUber', label: 'Taxi / Uber' },
+      { key: 'transportePublico', label: 'Transporte público' },
+      { key: 'metro', label: 'Metro' },
+      { key: 'mantenimientoAuto', label: 'Mantenimiento auto' },
+      { key: 'seguroAuto', label: 'Seguro auto' },
+      { key: 'otro', label: 'Otro' },
     ],
   },
   {
     key: 'creditos', label: 'Créditos / Deudas', icon: '💳',
     items: [
-      { key: 'creditoHipotecario', label: 'Crédito Hipotecario'},
-      { key: 'creditoAuto',        label: 'Crédito Auto'       },
-      { key: 'tarjetaCredito',     label: 'Tarjeta de Crédito' },
-      { key: 'otro',               label: 'Otro'               },
+      { key: 'creditoHipotecario', label: 'Crédito Hipotecario' },
+      { key: 'creditoAuto', label: 'Crédito Auto' },
+      { key: 'tarjetaCredito', label: 'Tarjeta de Crédito' },
+      { key: 'otro', label: 'Otro' },
     ],
   },
   {
     key: 'entretenimiento', label: 'Entretenimiento', icon: '🎉',
     items: [
-      { key: 'viajes',      label: 'Viajes'                   },
-      { key: 'restaurantes',label: 'Restaurantes'              },
-      { key: 'diversion',   label: 'Diversión'                },
-      { key: 'fiesta',      label: 'Fiesta'                   },
-      { key: 'appleMusic',  label: 'Apple Music'              },
-      { key: 'ia',          label: 'IA / ChatGPT'             },
-      { key: 'otros',       label: 'Otros'                    },
+      { key: 'viajes', label: 'Viajes' },
+      { key: 'restaurantes', label: 'Restaurantes' },
+      { key: 'diversion', label: 'Diversión' },
+      { key: 'fiesta', label: 'Fiesta' },
+      { key: 'appleMusic', label: 'Apple Music' },
+      { key: 'ia', label: 'IA / ChatGPT' },
+      { key: 'otros', label: 'Otros' },
     ],
   },
   {
     key: 'familia', label: 'Familia', icon: '👨‍👩‍👧',
     items: [
-      { key: 'colegios',       label: 'Colegios'        },
-      { key: 'seguroMedico',   label: 'Seguro Médico'   },
-      { key: 'otrosSeguros',   label: 'Otros Seguros'   },
-      { key: 'suscripciones',  label: 'Suscripciones'   },
-      { key: 'gimnasio',       label: 'Gimnasio'        },
-      { key: 'impuestos',      label: 'Impuestos'       },
-      { key: 'entretenimiento',label: 'Entretenimiento' },
-      { key: 'otros',          label: 'Otros'           },
+      { key: 'colegios', label: 'Colegios' },
+      { key: 'seguroMedico', label: 'Seguro Médico' },
+      { key: 'otrosSeguros', label: 'Otros Seguros' },
+      { key: 'suscripciones', label: 'Suscripciones' },
+      { key: 'gimnasio', label: 'Gimnasio' },
+      { key: 'impuestos', label: 'Impuestos' },
+      { key: 'entretenimiento', label: 'Entretenimiento' },
+      { key: 'otros', label: 'Otros' },
     ],
   },
 ];
@@ -143,7 +150,7 @@ function PeriodicidadModal({ visible, current, onSelect, onClose }) {
 const IncomeRow = React.memo(({ label, item, onChangeMonto, onOpenPeriod }) => {
   const { colors: C } = useTheme();
   const monthly = toMonthly(item.monto, item.periodicidad);
-  const annual  = toAnnual(item.monto, item.periodicidad);
+  const annual = toAnnual(item.monto, item.periodicidad);
   const formatted = item.monto ? formatCOP(parseAmount(item.monto)) : null;
   return (
     <View style={{ borderBottomWidth: 1, borderBottomColor: C.border, paddingVertical: 12 }}>
@@ -201,8 +208,8 @@ const IncomeRow = React.memo(({ label, item, onChangeMonto, onOpenPeriod }) => {
 
 const ExpenseRow = React.memo(({ label, item, onChangeMonto, onOpenPeriod, onToggleEsencial }) => {
   const { colors: C } = useTheme();
-  const monthly   = toMonthly(item.monto, item.periodicidad);
-  const annual    = toAnnual(item.monto, item.periodicidad);
+  const monthly = toMonthly(item.monto, item.periodicidad);
+  const annual = toAnnual(item.monto, item.periodicidad);
   const formatted = item.monto ? formatCOP(parseAmount(item.monto)) : null;
   return (
     <View style={{ borderBottomWidth: 1, borderBottomColor: C.border, paddingVertical: 12 }}>
@@ -325,15 +332,15 @@ function addMes(mes, delta) {
 }
 
 export default function PresupuestoScreen() {
-  const [mes, setMes]           = useState(getCurrentMes);
-  const [data, setData]         = useState(null);
+  const [mes, setMes] = useState(getCurrentMes);
+  const [data, setData] = useState(null);
   const [expanded, setExpanded] = useState({ ingresos: true });
-  const [periodModal, setPeriodModal] = useState({ visible: false, current: 'mensual', onSelect: () => {} });
+  const [periodModal, setPeriodModal] = useState({ visible: false, current: 'mensual', onSelect: () => { } });
   const saveTimer = useRef(null);
   const { colors: C } = useTheme();
 
   const currentMes = getCurrentMes();
-  const isFuture   = mes > currentMes;
+  const isFuture = mes > currentMes;
 
   useFocusEffect(useCallback(() => {
     setData(null);
@@ -513,10 +520,10 @@ export default function PresupuestoScreen() {
 
 function makeStyles(C) {
   return StyleSheet.create({
-    container:    { flex: 1, backgroundColor: C.bg },
-    content:      { padding: 16, paddingTop: 52, paddingBottom: 48 },
-    title:        { fontSize: 32, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 24 },
-    section:      { marginBottom: 12 },
+    container: { flex: 1, backgroundColor: C.bg },
+    content: { padding: 16, paddingTop: 52, paddingBottom: 48 },
+    title: { fontSize: 32, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 24 },
+    section: { marginBottom: 12 },
     sectionBody: {
       backgroundColor: C.card,
       borderRadius: 12,

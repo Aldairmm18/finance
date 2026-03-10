@@ -22,15 +22,20 @@ const screenWidth = Dimensions.get('window').width;
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
 const CAT_META = {
-  hogar:           { label: 'Hogar',          color: '#818cf8' },
-  comida:          { label: 'Comida',          color: '#2dd4bf' },
-  transporte:      { label: 'Transporte',      color: '#f59e0b' },
-  creditos:        { label: 'Créditos',        color: '#f472b6' },
+  hogar: { label: 'Hogar', color: '#818cf8' },
+  comida: { label: 'Comida', color: '#2dd4bf' },
+  transporte: { label: 'Transporte', color: '#f59e0b' },
+  creditos: { label: 'Créditos', color: '#f472b6' },
   entretenimiento: { label: 'Entretenimiento', color: '#60a5fa' },
-  familia:         { label: 'Familia',         color: '#34d399' },
-  ingresos:        { label: 'Ingresos',        color: '#2dd4bf' },
-  otro:            { label: 'Otro',            color: '#94a3b8' },
-  otros:           { label: 'Otros',           color: '#94a3b8' },
+  familia: { label: 'Familia', color: '#34d399' },
+  salario: { label: 'Salario', color: '#2dd4bf' },
+  bonos: { label: 'Bonos', color: '#818cf8' },
+  comisiones: { label: 'Comisiones', color: '#60a5fa' },
+  dividendos: { label: 'Dividendos', color: '#f472b6' },
+  ahorro: { label: 'Ahorro', color: '#fbbf24' },
+  ingresos: { label: 'Ingresos', color: '#2dd4bf' },
+  otro: { label: 'Otro', color: '#94a3b8' },
+  otros: { label: 'Otros', color: '#94a3b8' },
 };
 
 function catLabel(k) { return CAT_META[k]?.label || (k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Otro'); }
@@ -85,13 +90,13 @@ function TxRow({ tx, animVal }) {
 
 export default function GastosScreen() {
   const { colors: C } = useTheme();
-  const [mes, setMes]           = useState(getCurrentMes);
-  const [txs, setTxs]           = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [mes, setMes] = useState(getCurrentMes);
+  const [txs, setTxs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tipoFiltro, setTipoFiltro] = useState('todos');   // 'todos' | 'gasto' | 'ingreso'
-  const [catFiltro, setCatFiltro]   = useState('todos');
-  const [search, setSearch]         = useState('');
+  const [catFiltro, setCatFiltro] = useState('todos');
+  const [search, setSearch] = useState('');
 
   const listAnims = useRef([...Array(30)].map(() => new Animated.Value(0))).current;
 
@@ -132,19 +137,19 @@ export default function GastosScreen() {
   const filtered = useMemo(() => {
     let list = txs;
     if (tipoFiltro !== 'todos') list = list.filter(tx => tx.tipo === tipoFiltro);
-    if (catFiltro  !== 'todos') list = list.filter(tx => tx.categoria === catFiltro);
+    if (catFiltro !== 'todos') list = list.filter(tx => tx.categoria === catFiltro);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(tx =>
         (tx.descripcion || '').toLowerCase().includes(q) ||
-        (tx.categoria   || '').toLowerCase().includes(q)
+        (tx.categoria || '').toLowerCase().includes(q)
       );
     }
     return list;
   }, [txs, tipoFiltro, catFiltro, search]);
 
   // ── Totales del filtro ──
-  const totalGastos   = filtered.filter(tx => tx.tipo === 'gasto').reduce((s, tx) => s + (tx.monto || 0), 0);
+  const totalGastos = filtered.filter(tx => tx.tipo === 'gasto').reduce((s, tx) => s + (tx.monto || 0), 0);
   const totalIngresos = filtered.filter(tx => tx.tipo === 'ingreso').reduce((s, tx) => s + (tx.monto || 0), 0);
 
   // ── Categorías disponibles en las transacciones del mes ──
@@ -231,9 +236,9 @@ export default function GastosScreen() {
       {/* ── Filtro por tipo ── */}
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
         {[
-          { key: 'todos',   label: 'Todos',    color: C.purple },
-          { key: 'gasto',   label: 'Gastos',   color: C.pink   },
-          { key: 'ingreso', label: 'Ingresos', color: C.teal   },
+          { key: 'todos', label: 'Todos', color: C.purple },
+          { key: 'gasto', label: 'Gastos', color: C.pink },
+          { key: 'ingreso', label: 'Ingresos', color: C.teal },
         ].map(opt => (
           <TouchableOpacity
             key={opt.key}

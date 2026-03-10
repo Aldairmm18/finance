@@ -1,18 +1,5 @@
-"""
-Parser de lenguaje natural para transacciones financieras.
-
-Ejemplos:
-  "almuerzo 15000"           → gasto, comida/comidasFuera, 15000
-  "taxi 8.500"               → gasto, transporte/taxiUber, 8500
-  "mercado 250.000"          → gasto, comida/mercado, 250000
-  "salario 3.500.000"        → ingreso, ingresos/salario, 3500000
-  "netflix 45000"            → gasto, familia/suscripciones, 45000
-  "extra multa 200000"       → gasto, otro/extraordinario, 200000, es_extraordinario=True
-  "imprevisto celular 1500000" → gasto, otro/extraordinario, 1500000, es_extraordinario=True
-"""
-
 import re
-from categories import KEYWORD_MAP, INGRESO_KEYWORDS
+from categories import KEYWORD_MAP, INGRESO_KEYWORDS, INGRESO_CATEGORIES
 
 # Palabras que marcan el gasto como extraordinario/imprevisto
 EXTRA_KEYWORDS = {
@@ -89,14 +76,16 @@ def parse_message(text: str) -> dict | None:
 
     # Determinar tipo
     tipo = 'gasto'
-    if categoria == 'ingresos':
+    if categoria in INGRESO_CATEGORIES:
         tipo = 'ingreso'
     else:
         for kw in INGRESO_KEYWORDS:
             if kw in lower:
                 tipo = 'ingreso'
+                # Si la categoría es una de gastos (hogar, comida, etc.),
+                # mantenerla para que el ingreso quede categorizado correctamente
                 if categoria == 'otro':
-                    categoria, subcategoria = 'ingresos', 'otros'
+                    categoria, subcategoria = 'otros', 'otros'
                 break
 
     # Si es extraordinario y no se clasificó, usar categoría genérica

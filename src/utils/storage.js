@@ -16,62 +16,69 @@ export function getCurrentMes() {
 
 export const DEFAULT_DATA = {
   ingresos: {
-    salario:    { monto: '', periodicidad: 'mensual' },
-    bonos:      { monto: '', periodicidad: 'mensual' },
+    salario: { monto: '', periodicidad: 'mensual' },
+    bonos: { monto: '', periodicidad: 'mensual' },
     dividendos: { monto: '', periodicidad: 'mensual' },
     comisiones: { monto: '', periodicidad: 'mensual' },
-    otros:      { monto: '', periodicidad: 'mensual' },
+    hogar: { monto: '', periodicidad: 'mensual' },
+    comida: { monto: '', periodicidad: 'mensual' },
+    transporte: { monto: '', periodicidad: 'mensual' },
+    creditos: { monto: '', periodicidad: 'mensual' },
+    entretenimiento: { monto: '', periodicidad: 'mensual' },
+    familia: { monto: '', periodicidad: 'mensual' },
+    ahorro: { monto: '', periodicidad: 'mensual' },
+    otros: { monto: '', periodicidad: 'mensual' },
   },
   gastos: {
     hogar: {
-      arriendo:       { monto: '', periodicidad: 'mensual', esencial: true  },
-      administracion: { monto: '', periodicidad: 'mensual', esencial: true  },
-      luz:            { monto: '', periodicidad: 'mensual', esencial: true  },
-      agua:           { monto: '', periodicidad: 'mensual', esencial: true  },
-      gas:            { monto: '', periodicidad: 'mensual', esencial: true  },
-      telefono:       { monto: '', periodicidad: 'mensual', esencial: true  },
-      internet:       { monto: '', periodicidad: 'mensual', esencial: true  },
-      tv:             { monto: '', periodicidad: 'mensual', esencial: false },
-      otro:           { monto: '', periodicidad: 'mensual', esencial: false },
+      arriendo: { monto: '', periodicidad: 'mensual', esencial: true },
+      administracion: { monto: '', periodicidad: 'mensual', esencial: true },
+      luz: { monto: '', periodicidad: 'mensual', esencial: true },
+      agua: { monto: '', periodicidad: 'mensual', esencial: true },
+      gas: { monto: '', periodicidad: 'mensual', esencial: true },
+      telefono: { monto: '', periodicidad: 'mensual', esencial: true },
+      internet: { monto: '', periodicidad: 'mensual', esencial: true },
+      tv: { monto: '', periodicidad: 'mensual', esencial: false },
+      otro: { monto: '', periodicidad: 'mensual', esencial: false },
     },
     comida: {
-      mercado:      { monto: '', periodicidad: 'mensual', esencial: true  },
+      mercado: { monto: '', periodicidad: 'mensual', esencial: true },
       comidasFuera: { monto: '', periodicidad: 'mensual', esencial: false },
-      otro:         { monto: '', periodicidad: 'mensual', esencial: false },
+      otro: { monto: '', periodicidad: 'mensual', esencial: false },
     },
     transporte: {
-      gasolina:          { monto: '', periodicidad: 'mensual', esencial: true  },
-      taxiUber:          { monto: '', periodicidad: 'mensual', esencial: true  },
-      transportePublico: { monto: '', periodicidad: 'mensual', esencial: true  },
-      metro:             { monto: '', periodicidad: 'mensual', esencial: true  },
+      gasolina: { monto: '', periodicidad: 'mensual', esencial: true },
+      taxiUber: { monto: '', periodicidad: 'mensual', esencial: true },
+      transportePublico: { monto: '', periodicidad: 'mensual', esencial: true },
+      metro: { monto: '', periodicidad: 'mensual', esencial: true },
       mantenimientoAuto: { monto: '', periodicidad: 'mensual', esencial: false },
-      seguroAuto:        { monto: '', periodicidad: 'mensual', esencial: true  },
-      otro:              { monto: '', periodicidad: 'mensual', esencial: false },
+      seguroAuto: { monto: '', periodicidad: 'mensual', esencial: true },
+      otro: { monto: '', periodicidad: 'mensual', esencial: false },
     },
     creditos: {
       creditoHipotecario: { monto: '', periodicidad: 'mensual', esencial: true },
-      creditoAuto:        { monto: '', periodicidad: 'mensual', esencial: true },
-      tarjetaCredito:     { monto: '', periodicidad: 'mensual', esencial: true },
-      otro:               { monto: '', periodicidad: 'mensual', esencial: true },
+      creditoAuto: { monto: '', periodicidad: 'mensual', esencial: true },
+      tarjetaCredito: { monto: '', periodicidad: 'mensual', esencial: true },
+      otro: { monto: '', periodicidad: 'mensual', esencial: true },
     },
     entretenimiento: {
-      viajes:       { monto: '', periodicidad: 'mensual', esencial: false },
+      viajes: { monto: '', periodicidad: 'mensual', esencial: false },
       restaurantes: { monto: '', periodicidad: 'mensual', esencial: false },
-      diversion:    { monto: '', periodicidad: 'mensual', esencial: false },
-      fiesta:       { monto: '', periodicidad: 'mensual', esencial: false },
-      appleMusic:   { monto: '', periodicidad: 'mensual', esencial: false },
-      ia:           { monto: '', periodicidad: 'mensual', esencial: false },
-      otros:        { monto: '', periodicidad: 'mensual', esencial: false },
+      diversion: { monto: '', periodicidad: 'mensual', esencial: false },
+      fiesta: { monto: '', periodicidad: 'mensual', esencial: false },
+      appleMusic: { monto: '', periodicidad: 'mensual', esencial: false },
+      ia: { monto: '', periodicidad: 'mensual', esencial: false },
+      otros: { monto: '', periodicidad: 'mensual', esencial: false },
     },
     familia: {
-      colegios:        { monto: '', periodicidad: 'mensual', esencial: true  },
-      seguroMedico:    { monto: '', periodicidad: 'mensual', esencial: true  },
-      otrosSeguros:    { monto: '', periodicidad: 'mensual', esencial: true  },
-      suscripciones:   { monto: '', periodicidad: 'mensual', esencial: false },
-      gimnasio:        { monto: '', periodicidad: 'mensual', esencial: false },
-      impuestos:       { monto: '', periodicidad: 'mensual', esencial: true  },
+      colegios: { monto: '', periodicidad: 'mensual', esencial: true },
+      seguroMedico: { monto: '', periodicidad: 'mensual', esencial: true },
+      otrosSeguros: { monto: '', periodicidad: 'mensual', esencial: true },
+      suscripciones: { monto: '', periodicidad: 'mensual', esencial: false },
+      gimnasio: { monto: '', periodicidad: 'mensual', esencial: false },
+      impuestos: { monto: '', periodicidad: 'mensual', esencial: true },
       entretenimiento: { monto: '', periodicidad: 'mensual', esencial: false },
-      otros:           { monto: '', periodicidad: 'mensual', esencial: false },
+      otros: { monto: '', periodicidad: 'mensual', esencial: false },
     },
   },
   ahorro: { monto: '', periodicidad: 'mensual' },
@@ -218,7 +225,7 @@ export async function loadDataMes(mes) {
   try {
     const json = await AsyncStorage.getItem(localKey);
     if (json) return deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), JSON.parse(json));
-  } catch {}
+  } catch { }
 
   // 3. Sin registro mensual → usar presupuesto base como punto de partida (no guardar aún)
   return loadData();
@@ -249,7 +256,7 @@ export async function saveDataMes(mes, data) {
       8000,
     )
       .then(() => AsyncStorage.setItem(SYNC_KEY, new Date().toISOString()))
-      .catch(() => {});
+      .catch(() => { });
   }
 }
 
@@ -303,10 +310,10 @@ export async function getLastSync() {
 export async function loadTransaccionesMes(mes) {
   if (!supabase) return [];
   try {
-    const m     = mes || getCurrentMes();
+    const m = mes || getCurrentMes();
     const [y, month] = m.split('-').map(Number);
     const start = new Date(y, month - 1, 1).toISOString().split('T')[0];
-    const end   = new Date(y, month, 0).toISOString().split('T')[0]; // último día del mes
+    const end = new Date(y, month, 0).toISOString().split('T')[0]; // último día del mes
 
     const { data, error } = await withTimeout(
       supabase
@@ -332,7 +339,7 @@ export async function loadTransaccionesMes(mes) {
 export async function loadExtraordinarios() {
   if (!supabase) return [];
   try {
-    const now   = new Date();
+    const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1)
       .toISOString().split('T')[0];
     const today = now.toISOString().split('T')[0];
@@ -365,14 +372,14 @@ export async function registrarExtraordinario({ descripcion, monto, categoria, t
   const { data, error } = await supabase
     .from('transacciones')
     .insert({
-      user_id:           USER_ID,
+      user_id: USER_ID,
       tipo,
       monto,
       categoria,
-      subcategoria:      'extraordinario',
+      subcategoria: 'extraordinario',
       descripcion,
-      fecha:             today,
-      fuente:            'app',
+      fecha: today,
+      fuente: 'app',
       es_extraordinario: true,
     })
     .select()

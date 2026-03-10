@@ -17,24 +17,29 @@ import { useRealtimeSync } from '../hooks/useRealtimeSync';
 // ─── Metadata de categorías ───────────────────────────────────────────────────
 
 const CAT_META = {
-  hogar:           { label: 'Hogar',           icon: '🏠', color: '#818cf8' },
-  comida:          { label: 'Comida',           icon: '🍽️', color: '#2dd4bf' },
-  transporte:      { label: 'Transporte',       icon: '🚗', color: '#f59e0b' },
-  creditos:        { label: 'Créditos',         icon: '💳', color: '#f472b6' },
-  entretenimiento: { label: 'Entretenimiento',  icon: '🎉', color: '#60a5fa' },
-  familia:         { label: 'Familia',          icon: '👨‍👩‍👧', color: '#34d399' },
+  hogar: { label: 'Hogar', icon: '🏠', color: '#818cf8' },
+  comida: { label: 'Comida', icon: '🍽️', color: '#2dd4bf' },
+  transporte: { label: 'Transporte', icon: '🚗', color: '#f59e0b' },
+  creditos: { label: 'Créditos', icon: '💳', color: '#f472b6' },
+  entretenimiento: { label: 'Entretenimiento', icon: '🎉', color: '#60a5fa' },
+  familia: { label: 'Familia', icon: '👨‍👩‍👧', color: '#34d399' },
 };
 
 const TIPO_LABELS = {
-  hogar:           'Hogar',
-  comida:          'Comida',
-  transporte:      'Transporte',
-  creditos:        'Créditos',
+  hogar: 'Hogar',
+  comida: 'Comida',
+  transporte: 'Transporte',
+  creditos: 'Créditos',
   entretenimiento: 'Entretenimiento',
-  familia:         'Familia',
-  ingresos:        'Ingresos',
-  otro:            'Otro',
-  otros:           'Otros',
+  familia: 'Familia',
+  salario: 'Salario',
+  bonos: 'Bonos',
+  comisiones: 'Comisiones',
+  dividendos: 'Dividendos',
+  ahorro: 'Ahorro',
+  ingresos: 'Ingresos',
+  otro: 'Otro',
+  otros: 'Otros',
 };
 
 function mesLabel(mes) {
@@ -61,10 +66,10 @@ function ProgressBar({ ratio, color }) {
 
 function CategoryProgressCard({ catKey, actual, planned, animVal }) {
   const { colors: C } = useTheme();
-  const meta    = CAT_META[catKey] || { label: catKey, icon: '•', color: C.purple };
-  const ratio   = planned > 0 ? actual / planned : actual > 0 ? 1.01 : 0;
-  const pct     = planned > 0 ? Math.round(ratio * 100) : null;
-  const over    = ratio > 1;
+  const meta = CAT_META[catKey] || { label: catKey, icon: '•', color: C.purple };
+  const ratio = planned > 0 ? actual / planned : actual > 0 ? 1.01 : 0;
+  const pct = planned > 0 ? Math.round(ratio * 100) : null;
+  const over = ratio > 1;
   const pctColor = over ? '#f472b6' : ratio > 0.8 ? '#f59e0b' : C.teal;
 
   const animStyle = animVal ? {
@@ -111,7 +116,7 @@ function CategoryProgressCard({ catKey, actual, planned, animVal }) {
 function TxRow({ tx }) {
   const { colors: C } = useTheme();
   const isIngreso = tx.tipo === 'ingreso';
-  const cat  = TIPO_LABELS[tx.categoria] || (tx.categoria || 'Otro');
+  const cat = TIPO_LABELS[tx.categoria] || (tx.categoria || 'Otro');
   const fecha = tx.fecha ? tx.fecha.slice(5) : '';  // MM-DD
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderColor: C.border }}>
@@ -133,9 +138,9 @@ function TxRow({ tx }) {
 
 export default function ResumenMesScreen() {
   const { colors: C } = useTheme();
-  const [planned, setPlanned]   = useState(null);  // totals from budget
-  const [actual, setActual]     = useState(null);   // totals after merge
-  const [txs, setTxs]           = useState([]);
+  const [planned, setPlanned] = useState(null);  // totals from budget
+  const [actual, setActual] = useState(null);   // totals after merge
+  const [txs, setTxs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('idle');
 
@@ -150,8 +155,8 @@ export default function ResumenMesScreen() {
         loadDataMes(mes),
         loadTransaccionesMes(),
       ]);
-      const base    = computeTotals(d);
-      const merged  = mergeTransacciones(base, transactions);
+      const base = computeTotals(d);
+      const merged = mergeTransacciones(base, transactions);
       setPlanned(base);
       setActual(merged);
       setTxs(transactions || []);
@@ -186,13 +191,13 @@ export default function ResumenMesScreen() {
   const cloudDotColor = cloudStatus === 'synced' ? '#34d399' : cloudStatus === 'error' ? '#f472b6' : C.border;
 
   // Balance
-  const balance   = actual.ingresosMonthly - actual.totalGastosMonthly;
-  const balColor  = balance >= 0 ? C.teal : C.pink;
+  const balance = actual.ingresosMonthly - actual.totalGastosMonthly;
+  const balColor = balance >= 0 ? C.teal : C.pink;
 
   // Categorías con actividad o presupuesto
   const catEntries = Object.keys(CAT_META).map(k => ({
-    key:     k,
-    actual:  actual.gastosByCategory[k]  || 0,
+    key: k,
+    actual: actual.gastosByCategory[k] || 0,
     planned: planned.gastosByCategory[k] || 0,
   })).filter(e => e.actual > 0 || e.planned > 0);
 
@@ -268,9 +273,9 @@ export default function ResumenMesScreen() {
         <View style={{ height: 3, backgroundColor: C.purple }} />
         <View style={{ flexDirection: 'row', padding: 14, gap: 0 }}>
           {[
-            { label: 'Esenciales',    val: actual.esencialesMonthly,   color: C.teal   },
-            { label: 'No Esenciales', val: actual.noEsencialesMonthly, color: C.pink   },
-            { label: 'Créditos',      val: actual.creditosMonthly,     color: C.purple },
+            { label: 'Esenciales', val: actual.esencialesMonthly, color: C.teal },
+            { label: 'No Esenciales', val: actual.noEsencialesMonthly, color: C.pink },
+            { label: 'Créditos', val: actual.creditosMonthly, color: C.purple },
           ].map((item, i) => (
             <View key={item.label} style={{ flex: 1, alignItems: 'center', borderRightWidth: i < 2 ? 1 : 0, borderColor: C.border }}>
               <Text style={{ fontSize: 9, color: C.textMuted, fontWeight: '700', letterSpacing: 0.9, textTransform: 'uppercase', marginBottom: 5, textAlign: 'center' }}>{item.label}</Text>
