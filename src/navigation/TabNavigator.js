@@ -5,18 +5,18 @@ import { useTheme } from '../context/ThemeContext';
 
 import DashboardScreen from '../screens/DashboardScreen';
 import PresupuestoScreen from '../screens/PresupuestoScreen';
-import FlujoMensualScreen from '../screens/FlujoMensualScreen';
+import ResumenMesScreen from '../screens/ResumenMesScreen';
 import TranquilidadScreen from '../screens/TranquilidadScreen';
 import ConfigScreen from '../screens/ConfigScreen';
 
 const Tab = createBottomTabNavigator();
 
 const ICONS = {
-  Dashboard: 'grid-outline',
+  Dashboard:   'grid-outline',
   Presupuesto: 'wallet-outline',
-  FlujoMensual: 'calendar-outline',
-  Tranquilidad: 'leaf-outline',
-  Config: 'settings-outline',
+  ResumenMes:  'bar-chart-outline',
+  Tranquilidad:'leaf-outline',
+  Config:      'settings-outline',
 };
 
 export default function TabNavigator() {
@@ -42,11 +42,11 @@ export default function TabNavigator() {
         ),
       })}
     >
-      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarLabel: 'Dashboard' }} />
-      <Tab.Screen name="Presupuesto" component={PresupuestoScreen} options={{ tabBarLabel: 'Presupuesto' }} />
-      <Tab.Screen name="FlujoMensual" component={FlujoMensualScreen} options={{ tabBarLabel: 'Flujo' }} />
-      <Tab.Screen name="Tranquilidad" component={TranquilidadScreen} options={{ tabBarLabel: 'Tranquilidad' }} />
-      <Tab.Screen name="Config" component={ConfigScreen} options={{ tabBarLabel: 'Config' }} />
+      <Tab.Screen name="Dashboard"    component={DashboardScreen}   options={{ tabBarLabel: 'Dashboard'   }} />
+      <Tab.Screen name="Presupuesto"  component={PresupuestoScreen} options={{ tabBarLabel: 'Presupuesto' }} />
+      <Tab.Screen name="ResumenMes"   component={ResumenMesScreen}  options={{ tabBarLabel: 'Resumen'     }} />
+      <Tab.Screen name="Tranquilidad" component={TranquilidadScreen}options={{ tabBarLabel: 'Tranquilidad'}} />
+      <Tab.Screen name="Config"       component={ConfigScreen}      options={{ tabBarLabel: 'Config'      }} />
     </Tab.Navigator>
   );
 }
