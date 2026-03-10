@@ -2,6 +2,7 @@
 Capa de acceso a Supabase para el bot de Telegram.
 Todas las fechas se manejan en zona horaria Colombia (UTC-5).
 Todas las queries incluyen datos de cualquier fuente (app + bot).
+Soporta multi-usuario via tabla telegram_users.
 """
 
 import os
@@ -30,9 +31,73 @@ def _today_co() -> date:
     return _now_co().date()
 
 
+# ─── Multi-usuario ────────────────────────────────────────────────────────────
+
+def vincular_telegram(chat_id: int, email: str, password: str) -> str:
+    """
+    Vincula un chat_id de Telegram con una cuenta de la app.
+    Autentica con email/password via Supabase Auth y guarda el mapping.
+    Retorna el user_id vinculado.
+    """
+    # Autenticar via Supabase Auth
+    auth_response = supabase.auth.sign_in_with_password({
+        'email': email,
+        'password': password,
+    })
+    user = auth_response.user
+    if not user:
+        raise RuntimeError('No se pudo autenticar. Verifica tu email y contraseña.')
+
+    user_id = user.id
+
+    # Guardar o actualizar el mapping chat_id → user_id
+    supabase.table('telegram_users').upsert(
+        {
+            'chat_id': chat_id,
+            'user_id': user_id,
+            'linked_at': _now_co().isoformat(),
+        },
+        on_conflict='chat_id',
+    ).execute()
+
+    # Cerrar la sesión del bot (no necesita mantenerla)
+    try:
+        supabase.auth.sign_out()
+    except Exception:
+        pass
+
+    return user_id
+
+
+def desvincular_telegram(chat_id: int) -> bool:
+    """Desvincula un chat_id. Retorna True si había un registro."""
+    result = (
+        supabase.table('telegram_users')
+        .delete()
+        .eq('chat_id', chat_id)
+        .execute()
+    )
+    return bool(result.data)
+
+
+def get_user_id(chat_id: int) -> str | None:
+    """Retorna el user_id vinculado a un chat_id, o None si no está vinculado."""
+    result = (
+        supabase.table('telegram_users')
+        .select('user_id')
+        .eq('chat_id', chat_id)
+        .maybeSingle()
+        .execute()
+    )
+    if result.data:
+        return result.data['user_id']
+    return None
+
+
 # ─── Escritura ─────────────────────────────────────────────────────────────────
 
 def registrar_transaccion(
+    user_id: str,
     tipo: str,
     monto: float,
     categoria: str,
@@ -42,7 +107,7 @@ def registrar_transaccion(
     es_extraordinario: bool = False,
 ) -> dict:
     row = {
-        'user_id':           'default',
+        'user_id':           user_id,
         'tipo':              tipo,
         'monto':             monto,
         'categoria':         categoria,
@@ -58,11 +123,11 @@ def registrar_transaccion(
     return result.data[0]
 
 
-def borrar_ultima_transaccion() -> dict | None:
+def borrar_ultima_transaccion(user_id: str) -> dict | None:
     result = (
         supabase.table('transacciones')
         .select('*')
-        .eq('user_id', 'default')
+        .eq('user_id', user_id)
         .eq('fuente', 'telegram_bot')
         .order('created_at', desc=True)
         .limit(1)
@@ -77,11 +142,11 @@ def borrar_ultima_transaccion() -> dict | None:
 
 # ─── Lectura (incluye todas las fuentes: app + bot) ───────────────────────────
 
-def _fetch_transacciones(desde: date, hasta: date) -> list[dict]:
+def _fetch_transacciones(user_id: str, desde: date, hasta: date) -> list[dict]:
     result = (
         supabase.table('transacciones')
         .select('*')
-        .eq('user_id', 'default')
+        .eq('user_id', user_id)
         .gte('fecha', str(desde))
         .lte('fecha', str(hasta))
         .order('fecha', desc=True)
@@ -91,21 +156,21 @@ def _fetch_transacciones(desde: date, hasta: date) -> list[dict]:
     return result.data or []
 
 
-def obtener_resumen_hoy() -> dict:
+def obtener_resumen_hoy(user_id: str) -> dict:
     hoy = _today_co()
-    return _calcular_resumen(_fetch_transacciones(hoy, hoy), 'hoy')
+    return _calcular_resumen(_fetch_transacciones(user_id, hoy, hoy), 'hoy')
 
 
-def obtener_resumen_semana() -> dict:
+def obtener_resumen_semana(user_id: str) -> dict:
     hoy = _today_co()
     inicio = hoy - timedelta(days=hoy.weekday())
-    return _calcular_resumen(_fetch_transacciones(inicio, hoy), 'esta semana')
+    return _calcular_resumen(_fetch_transacciones(user_id, inicio, hoy), 'esta semana')
 
 
-def obtener_resumen_mes() -> dict:
+def obtener_resumen_mes(user_id: str) -> dict:
     hoy = _today_co()
     inicio = hoy.replace(day=1)
-    return _calcular_resumen(_fetch_transacciones(inicio, hoy), 'este mes')
+    return _calcular_resumen(_fetch_transacciones(user_id, inicio, hoy), 'este mes')
 
 
 def _calcular_resumen(filas: list[dict], periodo: str) -> dict:
@@ -123,12 +188,12 @@ def _calcular_resumen(filas: list[dict], periodo: str) -> dict:
     }
 
 
-def obtener_gastos_por_categoria(mes: date | None = None) -> list[dict]:
+def obtener_gastos_por_categoria(user_id: str, mes: date | None = None) -> list[dict]:
     hoy = _today_co()
     inicio = (mes or hoy).replace(day=1)
     fin    = hoy if mes is None or mes.month == hoy.month else \
              (inicio.replace(month=inicio.month % 12 + 1, day=1) - timedelta(days=1))
-    filas  = _fetch_transacciones(inicio, fin)
+    filas  = _fetch_transacciones(user_id, inicio, fin)
     gastos = [f for f in filas if f['tipo'] == 'gasto']
     agrupado: dict[str, float] = {}
     for f in gastos:
@@ -140,11 +205,11 @@ def obtener_gastos_por_categoria(mes: date | None = None) -> list[dict]:
     )
 
 
-def obtener_ultimas_transacciones(n: int = 5) -> list[dict]:
+def obtener_ultimas_transacciones(user_id: str, n: int = 5) -> list[dict]:
     result = (
         supabase.table('transacciones')
         .select('*')
-        .eq('user_id', 'default')
+        .eq('user_id', user_id)
         .order('fecha', desc=True)
         .order('created_at', desc=True)
         .limit(max(1, min(n, 20)))
@@ -153,13 +218,13 @@ def obtener_ultimas_transacciones(n: int = 5) -> list[dict]:
     return result.data or []
 
 
-def obtener_extraordinarios_mes() -> list[dict]:
+def obtener_extraordinarios_mes(user_id: str) -> list[dict]:
     hoy = _today_co()
     inicio = hoy.replace(day=1)
     result = (
         supabase.table('transacciones')
         .select('*')
-        .eq('user_id', 'default')
+        .eq('user_id', user_id)
         .eq('es_extraordinario', True)
         .gte('fecha', str(inicio))
         .lte('fecha', str(hoy))

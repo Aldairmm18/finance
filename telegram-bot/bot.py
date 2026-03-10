@@ -1,7 +1,8 @@
 """
 @aldair_finance_bot: bot de Telegram para registrar transacciones financieras.
+Multi-usuario: requiere vinculación con cuenta de la app via /vincular.
 
-Comandos: /start /ayuda /hoy /semana /mes /balance /categorias /ultimos /borrar
+Comandos: /start /ayuda /hoy /semana /mes /balance /categorias /ultimos /borrar /vincular /desvincular
 Texto libre: "almuerzo 15000", "salario 3.500.000", "extra multa 200000"
 """
 
@@ -29,8 +30,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TOKEN           = os.getenv('TELEGRAM_BOT_TOKEN', '')
-ALLOWED_CHAT_ID = os.getenv('ALLOWED_CHAT_ID', '')
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 
 
 # ─── Helpers de formato ───────────────────────────────────────────────────────
@@ -48,35 +48,116 @@ def cat_label(cat: str) -> str:
 def sub_label(sub: str) -> str:
     return SUBCATEGORY_LABELS.get(sub, sub)
 
-def _check_allowed(update: Update) -> bool:
-    if not ALLOWED_CHAT_ID:
-        return True
-    return str(update.effective_chat.id) == ALLOWED_CHAT_ID
+
+def _get_uid(update: Update) -> str | None:
+    """Retorna el user_id vinculado al chat, o None si no está vinculado."""
+    chat_id = update.effective_chat.id
+    return db.get_user_id(chat_id)
+
+
+async def _require_linked(update: Update) -> str | None:
+    """Verifica vinculación. Si no está vinculado, envía mensaje y retorna None."""
+    uid = _get_uid(update)
+    if uid is None:
+        await update.message.reply_text(
+            "⚠️ *No estás vinculado a una cuenta.*\n\n"
+            "Para usar el bot necesitas una cuenta en la app Finance.\n\n"
+            "1️⃣ Regístrate en la app\n"
+            "2️⃣ Vincula tu Telegram con:\n"
+            "`/vincular tu@email.com tuContraseña`\n\n"
+            "_Tus datos quedarán sincronizados entre la app y el bot._",
+            parse_mode='Markdown',
+        )
+    return uid
 
 
 # ─── Comandos ─────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
-        return
     logger.info('start chat_id=%s', update.effective_chat.id)
-    await update.message.reply_text(
-        "👋 *Hola, soy tu bot de finanzas personales.*\n\n"
-        "Escríbeme cualquier gasto o ingreso en texto libre y lo registro.\n\n"
-        "Ejemplos:\n"
-        "• `almuerzo 15000`\n"
-        "• `taxi 8.500`\n"
-        "• `mercado 250.000`\n"
-        "• `salario 3.500.000`\n"
-        "• `extra multa 200000` ⚡\n\n"
-        "Usa /ayuda para ver todos los comandos.",
-        parse_mode='Markdown',
-    )
+    uid = _get_uid(update)
+    if uid:
+        await update.message.reply_text(
+            "👋 *Hola, ya estás vinculado.*\n\n"
+            "Escríbeme cualquier gasto o ingreso en texto libre y lo registro.\n\n"
+            "Ejemplos:\n"
+            "• `almuerzo 15000`\n"
+            "• `taxi 8.500`\n"
+            "• `salario 3.500.000`\n"
+            "• `extra multa 200000` ⚡\n\n"
+            "Usa /ayuda para ver todos los comandos.",
+            parse_mode='Markdown',
+        )
+    else:
+        await update.message.reply_text(
+            "👋 *Hola, soy tu bot de finanzas personales.*\n\n"
+            "Para empezar, vincula tu cuenta de la app:\n"
+            "`/vincular tu@email.com tuContraseña`\n\n"
+            "Si no tienes cuenta, regístrate primero en la app Finance.",
+            parse_mode='Markdown',
+        )
+
+
+async def cmd_vincular(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Vincula la cuenta de Telegram con una cuenta de la app."""
+    chat_id = update.effective_chat.id
+
+    if not ctx.args or len(ctx.args) < 2:
+        await update.message.reply_text(
+            "Uso: `/vincular email contraseña`\n\n"
+            "Ejemplo: `/vincular aldair@correo.com MiPass123`",
+            parse_mode='Markdown',
+        )
+        return
+
+    email = ctx.args[0]
+    password = ' '.join(ctx.args[1:])
+
+    try:
+        user_id = db.vincular_telegram(chat_id, email, password)
+        logger.info('Vinculado chat_id=%s → user_id=%s', chat_id, user_id[:8])
+        await update.message.reply_text(
+            "✅ *¡Vinculación exitosa!*\n\n"
+            "Tu cuenta de Telegram está conectada con tu cuenta de la app Finance.\n"
+            "Ahora puedes registrar gastos e ingresos directamente desde aquí.\n\n"
+            "_Escribe /ayuda para ver los comandos disponibles._",
+            parse_mode='Markdown',
+        )
+    except Exception as e:
+        logger.error('vincular error: %s', e)
+        msg = str(e)
+        if 'Invalid login' in msg or 'invalid' in msg.lower():
+            await update.message.reply_text(
+                "❌ *Credenciales incorrectas.*\n\n"
+                "Verifica tu email y contraseña e intenta de nuevo.\n"
+                "Usa: `/vincular tu@email.com tuContraseña`",
+                parse_mode='Markdown',
+            )
+        else:
+            await update.message.reply_text(
+                f"❌ Error al vincular: _{msg[:100]}_",
+                parse_mode='Markdown',
+            )
+
+
+async def cmd_desvincular(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Desvincula la cuenta de Telegram."""
+    chat_id = update.effective_chat.id
+    if db.desvincular_telegram(chat_id):
+        logger.info('Desvinculado chat_id=%s', chat_id)
+        await update.message.reply_text(
+            "🔓 *Cuenta desvinculada.*\n"
+            "Ya no se registrarán transacciones desde este chat.\n"
+            "Usa `/vincular email contraseña` para volver a vincular.",
+            parse_mode='Markdown',
+        )
+    else:
+        await update.message.reply_text(
+            "No estabas vinculado a ninguna cuenta.",
+        )
 
 
 async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
-        return
     await update.message.reply_text(
         "*Comandos disponibles:*\n\n"
         "/hoy — Resumen del día\n"
@@ -85,7 +166,9 @@ async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/balance — Balance del mes\n"
         "/categorias — Gastos por categoría\n"
         "/ultimos [n] — Últimas transacciones (default 5)\n"
-        "/borrar — Elimina la última transacción\n\n"
+        "/borrar — Elimina la última transacción\n"
+        "/vincular email contraseña — Vincular cuenta\n"
+        "/desvincular — Desvincular cuenta\n\n"
         "*Texto libre:*\n"
         "`netflix 45000` · `taxi 12.000` · `salario 3.500.000`\n\n"
         "*Gastos imprevistos:*\n"
@@ -106,32 +189,35 @@ def _formato_resumen(r: dict) -> str:
 
 
 async def cmd_hoy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
+    uid = await _require_linked(update)
+    if not uid:
         return
     try:
         await update.message.reply_text(
-            _formato_resumen(db.obtener_resumen_hoy()), parse_mode='Markdown')
+            _formato_resumen(db.obtener_resumen_hoy(uid)), parse_mode='Markdown')
     except Exception as e:
         logger.error('cmd_hoy: %s', e)
         await update.message.reply_text('❌ Error consultando datos. Intenta de nuevo.')
 
 
 async def cmd_semana(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
+    uid = await _require_linked(update)
+    if not uid:
         return
     try:
         await update.message.reply_text(
-            _formato_resumen(db.obtener_resumen_semana()), parse_mode='Markdown')
+            _formato_resumen(db.obtener_resumen_semana(uid)), parse_mode='Markdown')
     except Exception as e:
         logger.error('cmd_semana: %s', e)
         await update.message.reply_text('❌ Error consultando datos. Intenta de nuevo.')
 
 
 async def cmd_mes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
+    uid = await _require_linked(update)
+    if not uid:
         return
     try:
-        r     = db.obtener_resumen_mes()
+        r     = db.obtener_resumen_mes(uid)
         texto = _formato_resumen(r)
 
         extras = r.get('extraordinarios', [])
@@ -152,10 +238,11 @@ async def cmd_mes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
+    uid = await _require_linked(update)
+    if not uid:
         return
     try:
-        r   = db.obtener_resumen_mes()
+        r   = db.obtener_resumen_mes(uid)
         pct = (r['gastos'] / r['ingresos'] * 100) if r['ingresos'] > 0 else 0
         e   = '🟢' if r['balance'] >= 0 else '🔴'
         await update.message.reply_text(
@@ -171,10 +258,11 @@ async def cmd_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_categorias(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
+    uid = await _require_linked(update)
+    if not uid:
         return
     try:
-        datos = db.obtener_gastos_por_categoria()
+        datos = db.obtener_gastos_por_categoria(uid)
         if not datos:
             await update.message.reply_text('Sin gastos registrados este mes.')
             return
@@ -196,7 +284,8 @@ async def cmd_categorias(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_ultimos(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
+    uid = await _require_linked(update)
+    if not uid:
         return
     n = 5
     if ctx.args:
@@ -205,7 +294,7 @@ async def cmd_ultimos(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except ValueError:
             pass
     try:
-        filas = db.obtener_ultimas_transacciones(n)
+        filas = db.obtener_ultimas_transacciones(uid, n)
         if not filas:
             await update.message.reply_text('Sin transacciones registradas.')
             return
@@ -229,10 +318,11 @@ async def cmd_ultimos(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_borrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
+    uid = await _require_linked(update)
+    if not uid:
         return
     try:
-        fila = db.borrar_ultima_transaccion()
+        fila = db.borrar_ultima_transaccion(uid)
         if not fila:
             await update.message.reply_text('No hay transacciones del bot para borrar.')
             return
@@ -254,7 +344,8 @@ async def cmd_borrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── Mensaje libre ────────────────────────────────────────────────────────────
 
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _check_allowed(update):
+    uid = await _require_linked(update)
+    if not uid:
         return
 
     text    = (update.message.text or '').strip()
@@ -282,6 +373,7 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         db.registrar_transaccion(
+            user_id           = uid,
             tipo              = parsed['tipo'],
             monto             = parsed['monto'],
             categoria         = parsed['categoria'],
@@ -325,15 +417,17 @@ def main():
 
     app = Application.builder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler('start',      cmd_start))
-    app.add_handler(CommandHandler('ayuda',      cmd_ayuda))
-    app.add_handler(CommandHandler('hoy',        cmd_hoy))
-    app.add_handler(CommandHandler('semana',     cmd_semana))
-    app.add_handler(CommandHandler('mes',        cmd_mes))
-    app.add_handler(CommandHandler('balance',    cmd_balance))
-    app.add_handler(CommandHandler('categorias', cmd_categorias))
-    app.add_handler(CommandHandler('ultimos',    cmd_ultimos))
-    app.add_handler(CommandHandler('borrar',     cmd_borrar))
+    app.add_handler(CommandHandler('start',       cmd_start))
+    app.add_handler(CommandHandler('ayuda',       cmd_ayuda))
+    app.add_handler(CommandHandler('vincular',    cmd_vincular))
+    app.add_handler(CommandHandler('desvincular', cmd_desvincular))
+    app.add_handler(CommandHandler('hoy',         cmd_hoy))
+    app.add_handler(CommandHandler('semana',      cmd_semana))
+    app.add_handler(CommandHandler('mes',         cmd_mes))
+    app.add_handler(CommandHandler('balance',     cmd_balance))
+    app.add_handler(CommandHandler('categorias',  cmd_categorias))
+    app.add_handler(CommandHandler('ultimos',     cmd_ultimos))
+    app.add_handler(CommandHandler('borrar',      cmd_borrar))
 
     # MessageHandler SIEMPRE después de CommandHandlers
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))

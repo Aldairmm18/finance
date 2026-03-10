@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Switch, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { syncData, getLastSync } from '../utils/storage';
 
 const APP_VERSION = '1.0.0';
@@ -9,8 +10,8 @@ const APP_VERSION = '1.0.0';
 function relativeTime(isoString) {
   if (!isoString) return null;
   const diffMs = Date.now() - new Date(isoString).getTime();
-  const mins   = Math.floor(diffMs / 60000);
-  if (mins < 1)  return 'hace un momento';
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'hace un momento';
   if (mins < 60) return `hace ${mins} min`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `hace ${hours}h`;
@@ -20,10 +21,10 @@ function relativeTime(isoString) {
 // ─── Componente de estado de sync ─────────────────────────────────────────────
 function SyncStatusDot({ status, C }) {
   const color = {
-    idle:    C.textMuted,
+    idle: C.textMuted,
     syncing: C.purple,
     success: C.teal,
-    error:   C.pink,
+    error: C.pink,
   }[status] ?? C.textMuted;
 
   return (
@@ -42,9 +43,10 @@ const syncDot = StyleSheet.create({
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 export default function ConfigScreen() {
   const { mode, colors: C, toggleTheme } = useTheme();
+  const { user, signOut } = useAuth();
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle'|'syncing'|'success'|'error'
-  const [lastSync,   setLastSync]   = useState(null);
-  const [syncError,  setSyncError]  = useState(null);
+  const [lastSync, setLastSync] = useState(null);
+  const [syncError, setSyncError] = useState(null);
 
   // Cargar timestamp de la última sync al montar
   useEffect(() => {
@@ -70,17 +72,17 @@ export default function ConfigScreen() {
   }, [syncStatus]);
 
   const syncLabel = {
-    idle:    'Sincronizar ahora',
+    idle: 'Sincronizar ahora',
     syncing: 'Sincronizando...',
     success: 'Sincronizado ✓',
-    error:   'Error al sincronizar',
+    error: 'Error al sincronizar',
   }[syncStatus];
 
   const syncLabelColor = {
-    idle:    C.purple,
+    idle: C.purple,
     syncing: C.purple,
     success: C.teal,
-    error:   C.pink,
+    error: C.pink,
   }[syncStatus];
 
   return (
@@ -188,14 +190,30 @@ export default function ConfigScreen() {
           <Text style={[s.infoValue, { color: C.text }]}>React Native · Expo SDK 55</Text>
         </View>
       </View>
+
+      {/* ── Cuenta ── */}
+      <View style={[s.section, { backgroundColor: C.card, borderColor: C.border }]}>
+        <Text style={[s.sectionTitle, { color: C.textMuted }]}>CUENTA</Text>
+        <View style={[s.infoRow, { borderBottomColor: C.border }]}>
+          <Text style={[s.infoLabel, { color: C.textMuted }]}>Correo</Text>
+          <Text style={[s.infoValue, { color: C.text }]} numberOfLines={1}>{user?.email || '—'}</Text>
+        </View>
+        <TouchableOpacity
+          style={[s.syncBtn, { borderTopColor: C.border }]}
+          onPress={signOut}
+          activeOpacity={0.7}
+        >
+          <Text style={[s.syncBtnText, { color: C.pink }]}>Cerrar sesión</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
-  content:      { padding: 16, paddingTop: 52, paddingBottom: 40 },
-  title:        { fontSize: 32, fontWeight: '900', marginBottom: 24, letterSpacing: -0.5 },
-  section:      { borderRadius: 12, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
+  content: { padding: 16, paddingTop: 52, paddingBottom: 40 },
+  title: { fontSize: 32, fontWeight: '900', marginBottom: 24, letterSpacing: -0.5 },
+  section: { borderRadius: 12, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
   sectionTitle: {
     fontSize: 10, fontWeight: '700', letterSpacing: 1.3,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
@@ -205,7 +223,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1,
   },
   rowLabel: { fontSize: 15, fontWeight: '500' },
-  rowSub:   { fontSize: 12, marginTop: 2, lineHeight: 17 },
+  rowSub: { fontSize: 12, marginTop: 2, lineHeight: 17 },
 
   // Sync
   syncRow: {

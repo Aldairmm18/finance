@@ -6,6 +6,17 @@ const STORAGE_MES_PREFIX = '@finance_mes_v1';
 export const SYNC_KEY = '@finance_last_sync';
 const USER_ID = 'default';
 
+/** Retorna el user_id autenticado, o 'default' como fallback */
+async function getUserId() {
+  if (!supabase) return USER_ID;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id || USER_ID;
+  } catch {
+    return USER_ID;
+  }
+}
+
 /** Retorna el mes actual en formato "YYYY-MM" */
 export function getCurrentMes() {
   const now = new Date();
@@ -125,6 +136,7 @@ function withTimeout(promise, ms = 6000) {
  * Si Supabase falla o no hay conexión, usa la caché local.
  */
 export async function loadData() {
+  const uid = await getUserId();
   // 1. Intentar Supabase (con timeout de 6s para no bloquear el arranque)
   if (supabase) {
     try {
@@ -132,7 +144,7 @@ export async function loadData() {
         supabase
           .from('presupuesto')
           .select('datos')
-          .eq('user_id', USER_ID)
+          .eq('user_id', uid)
           .maybeSingle(),
         6000
       );
@@ -175,11 +187,12 @@ export async function saveData(data) {
 
   // Subir a Supabase en background (no bloquea la UI)
   if (supabase) {
+    const uid = await getUserId();
     withTimeout(
       supabase
         .from('presupuesto')
         .upsert(
-          { user_id: USER_ID, datos: data, updated_at: new Date().toISOString() },
+          { user_id: uid, datos: data, updated_at: new Date().toISOString() },
           { onConflict: 'user_id' }
         ),
       8000
@@ -198,6 +211,7 @@ export async function saveData(data) {
  */
 export async function loadDataMes(mes) {
   const localKey = `${STORAGE_MES_PREFIX}_${mes}`;
+  const uid = await getUserId();
 
   // 1. Intentar presupuesto_mensual en Supabase
   if (supabase) {
@@ -206,7 +220,7 @@ export async function loadDataMes(mes) {
         supabase
           .from('presupuesto_mensual')
           .select('datos')
-          .eq('user_id', USER_ID)
+          .eq('user_id', uid)
           .eq('mes', mes)
           .maybeSingle(),
         6000,
@@ -246,11 +260,12 @@ export async function saveDataMes(mes, data) {
   }
 
   if (supabase) {
+    const uid = await getUserId();
     withTimeout(
       supabase
         .from('presupuesto_mensual')
         .upsert(
-          { user_id: USER_ID, mes, datos: data, updated_at: new Date().toISOString() },
+          { user_id: uid, mes, datos: data, updated_at: new Date().toISOString() },
           { onConflict: 'user_id,mes' },
         ),
       8000,
@@ -274,11 +289,12 @@ export async function syncData() {
     if (!json) return { success: false, reason: 'Sin datos locales' };
 
     const data = JSON.parse(json);
+    const uid = await getUserId();
     const { error } = await withTimeout(
       supabase
         .from('presupuesto')
         .upsert(
-          { user_id: USER_ID, datos: data, updated_at: new Date().toISOString() },
+          { user_id: uid, datos: data, updated_at: new Date().toISOString() },
           { onConflict: 'user_id' }
         ),
       10000
@@ -310,6 +326,7 @@ export async function getLastSync() {
 export async function loadTransaccionesMes(mes) {
   if (!supabase) return [];
   try {
+    const uid = await getUserId();
     const m = mes || getCurrentMes();
     const [y, month] = m.split('-').map(Number);
     const start = new Date(y, month - 1, 1).toISOString().split('T')[0];
@@ -319,7 +336,7 @@ export async function loadTransaccionesMes(mes) {
       supabase
         .from('transacciones')
         .select('*')
-        .eq('user_id', USER_ID)
+        .eq('user_id', uid)
         .gte('fecha', start)
         .lte('fecha', end)
         .order('fecha', { ascending: false }),
@@ -344,11 +361,12 @@ export async function loadExtraordinarios() {
       .toISOString().split('T')[0];
     const today = now.toISOString().split('T')[0];
 
+    const uid = await getUserId();
     const { data, error } = await withTimeout(
       supabase
         .from('transacciones')
         .select('*')
-        .eq('user_id', USER_ID)
+        .eq('user_id', uid)
         .eq('es_extraordinario', true)
         .gte('fecha', start)
         .lte('fecha', today)
@@ -368,11 +386,12 @@ export async function loadExtraordinarios() {
  */
 export async function registrarExtraordinario({ descripcion, monto, categoria, tipo = 'gasto' }) {
   if (!supabase) throw new Error('Sin conexión a Supabase');
+  const uid = await getUserId();
   const today = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('transacciones')
     .insert({
-      user_id: USER_ID,
+      user_id: uid,
       tipo,
       monto,
       categoria,
