@@ -220,6 +220,35 @@ export async function getLastSync() {
 }
 
 /**
+ * Carga TODAS las transacciones del mes actual desde Supabase (bot + app).
+ * Retorna [] si Supabase no está disponible.
+ */
+export async function loadTransaccionesMes() {
+  if (!supabase) return [];
+  try {
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      .toISOString().split('T')[0];
+    const today = now.toISOString().split('T')[0];
+
+    const { data, error } = await withTimeout(
+      supabase
+        .from('transacciones')
+        .select('*')
+        .eq('user_id', USER_ID)
+        .gte('fecha', start)
+        .lte('fecha', today)
+        .order('fecha', { ascending: false }),
+      6000,
+    );
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Carga gastos extraordinarios del mes actual desde Supabase.
  * Retorna [] si Supabase no está disponible o hay error de red.
  */

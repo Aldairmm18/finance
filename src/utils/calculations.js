@@ -37,6 +37,47 @@ export function formatCOP(amount) {
   return '$' + num.toLocaleString('es-CO');
 }
 
+/**
+ * Fusiona transacciones individuales (tabla `transacciones`) con los totales
+ * del presupuesto para que el bot y el FAB aparezcan en el Dashboard.
+ */
+export function mergeTransacciones(baseTotals, transacciones) {
+  if (!transacciones || transacciones.length === 0) return baseTotals;
+
+  const t = {
+    ...baseTotals,
+    gastosByCategory: { ...baseTotals.gastosByCategory },
+    ingresosBySource: { ...baseTotals.ingresosBySource },
+  };
+
+  for (const tx of transacciones) {
+    const monto = Number(tx.monto) || 0;
+    if (monto <= 0) continue;
+
+    if (tx.tipo === 'ingreso') {
+      t.ingresosMonthly += monto;
+      const src = tx.categoria || 'otros';
+      t.ingresosBySource[src] = (t.ingresosBySource[src] || 0) + monto;
+    } else {
+      t.totalGastosMonthly += monto;
+      const cat = tx.categoria || 'otro';
+      t.gastosByCategory[cat] = (t.gastosByCategory[cat] || 0) + monto;
+      if (cat === 'creditos') t.creditosMonthly += monto;
+      else t.noEsencialesMonthly += monto;
+    }
+  }
+
+  t.ingresosAnual           = t.ingresosMonthly * 12;
+  t.totalGastosAnual        = t.totalGastosMonthly * 12;
+  t.flujoCaja               = t.ingresosMonthly - t.totalGastosMonthly;
+  t.flujoCajaAnual          = t.flujoCaja * 12;
+  t.flujoCajaConAhorro      = t.ingresosMonthly - t.ahorroMonthly - t.totalGastosMonthly;
+  t.flujoCajaConAhorroAnual = t.flujoCajaConAhorro * 12;
+  t.fondoEmergencia         = t.esencialesMonthly * 3;
+
+  return t;
+}
+
 export function computeTotals(data) {
   if (!data) return null;
 

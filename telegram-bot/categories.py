@@ -93,6 +93,12 @@ KEYWORD_MAP = {
     # ── Créditos ───────────────────────────────────────────────────────────────
     'hipoteca':         ('creditos', 'creditoHipotecario'),
     'hipotecario':      ('creditos', 'creditoHipotecario'),
+    'credito hipotecario': ('creditos', 'creditoHipotecario'),
+    'crédito hipotecario': ('creditos', 'creditoHipotecario'),
+    'credito auto':     ('creditos', 'creditoAuto'),
+    'crédito auto':     ('creditos', 'creditoAuto'),
+    'credito carro':    ('creditos', 'creditoAuto'),
+    'crédito carro':    ('creditos', 'creditoAuto'),
     'tarjeta':          ('creditos', 'tarjetaCredito'),
     'visa':             ('creditos', 'tarjetaCredito'),
     'mastercard':       ('creditos', 'tarjetaCredito'),

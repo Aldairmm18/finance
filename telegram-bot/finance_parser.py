@@ -58,8 +58,14 @@ def _parse_monto(text: str) -> float | None:
 def _classify(lower: str) -> tuple[str, str]:
     """Retorna (categoria, subcategoria) buscando en el mapa de keywords."""
     for kw in sorted(KEYWORD_MAP.keys(), key=len, reverse=True):
-        if kw in lower:
-            return KEYWORD_MAP[kw]
+        if len(kw) <= 3:
+            # Palabras cortas: usar word boundary para evitar falsos positivos
+            # (ej. "ia" no debe coincidir con "familia", "bus" no con "autobús")
+            if re.search(r'\b' + re.escape(kw) + r'\b', lower):
+                return KEYWORD_MAP[kw]
+        else:
+            if kw in lower:
+                return KEYWORD_MAP[kw]
     return ('otro', 'otro')
 
 

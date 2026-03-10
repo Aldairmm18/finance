@@ -23,10 +23,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
 import {
   loadData,
-  loadExtraordinarios,
+  loadTransaccionesMes,
   registrarExtraordinario,
 } from '../utils/storage';
-import { formatCOP, computeTotals } from '../utils/calculations';
+import { formatCOP, computeTotals, mergeTransacciones } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 
@@ -368,9 +368,10 @@ export default function DashboardScreen() {
   const reload = useCallback(async () => {
     cardAnims.forEach(a => a.setValue(0));
     try {
-      const [d, extras] = await Promise.all([loadData(), loadExtraordinarios()]);
-      setTotals(computeTotals(d));
-      setExtraordinarios(extras || []);
+      const [d, txs] = await Promise.all([loadData(), loadTransaccionesMes()]);
+      const base = computeTotals(d);
+      setTotals(mergeTransacciones(base, txs));
+      setExtraordinarios((txs || []).filter(tx => tx.es_extraordinario && tx.tipo === 'gasto'));
       setCloudStatus('synced');
       setFocusKey(k => k + 1);
       Animated.stagger(65, cardAnims.map(a =>
@@ -387,8 +388,8 @@ export default function DashboardScreen() {
 
   const refreshExtras = useCallback(async () => {
     try {
-      const extras = await loadExtraordinarios();
-      setExtraordinarios(extras || []);
+      const txs = await loadTransaccionesMes();
+      setExtraordinarios((txs || []).filter(tx => tx.es_extraordinario && tx.tipo === 'gasto'));
     } catch {
       // silencioso
     }
@@ -474,14 +475,14 @@ export default function DashboardScreen() {
 
         {/* ── Fila 1: Ingresos + Gastos ── */}
         <View style={s.row}>
-          <StatCard label="Ingresos Mensuales" value={formatCOP(animIngresos)} sub={formatCOP(totals.ingresosAnual) + ' al ano'} accentColor={C.teal} animVal={cardAnims[0]} half />
-          <StatCard label="Gastos Mensuales"   value={formatCOP(animGastos)}   sub={formatCOP(totals.totalGastosAnual) + ' al ano'} accentColor={C.pink} animVal={cardAnims[1]} half />
+          <StatCard label="Ingresos Mensuales" value={formatCOP(animIngresos)} sub={formatCOP(totals.ingresosAnual) + ' al año'} accentColor={C.teal} animVal={cardAnims[0]} half />
+          <StatCard label="Gastos Mensuales"   value={formatCOP(animGastos)}   sub={formatCOP(totals.totalGastosAnual) + ' al año'} accentColor={C.pink} animVal={cardAnims[1]} half />
         </View>
 
         {/* ── Fila 2: Flujos ── */}
         <View style={s.row}>
-          <StatCard label="Flujo de Caja" value={formatCOP(animFlujo)}       sub={formatCOP(totals.flujoCajaAnual) + ' al ano'}           accentColor={flujoCajaColor}   animVal={cardAnims[2]} half />
-          <StatCard label="Con Ahorro"    value={formatCOP(animFlujoAhorro)} sub={formatCOP(totals.flujoCajaConAhorroAnual) + ' al ano'} accentColor={flujoAhorroColor} animVal={cardAnims[3]} half />
+          <StatCard label="Flujo de Caja" value={formatCOP(animFlujo)}       sub={formatCOP(totals.flujoCajaAnual) + ' al año'}           accentColor={flujoCajaColor}   animVal={cardAnims[2]} half />
+          <StatCard label="Con Ahorro"    value={formatCOP(animFlujoAhorro)} sub={formatCOP(totals.flujoCajaConAhorroAnual) + ' al año'} accentColor={flujoAhorroColor} animVal={cardAnims[3]} half />
         </View>
 
         {/* ── Fondo de Emergencia ── */}
