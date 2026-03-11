@@ -145,6 +145,93 @@ function PeriodicidadModal({ visible, current, onSelect, onClose }) {
   );
 }
 
+// ─── MonthYearPickerModal ─────────────────────────────────────────────────────
+
+const MONTH_NAMES_SHORT = [
+  'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+];
+
+function MonthYearPickerModal({ visible, currentMes, onSelect, onClose }) {
+  const { colors: C } = useTheme();
+  const [y, m] = currentMes.split('-').map(Number);
+  const [pickerYear, setPickerYear] = React.useState(y);
+
+  React.useEffect(() => {
+    if (visible) {
+      const [yr] = currentMes.split('-').map(Number);
+      setPickerYear(yr);
+    }
+  }, [visible, currentMes]);
+
+  const handleSelect = (monthIdx) => {
+    const selected = `${pickerYear}-${String(monthIdx + 1).padStart(2, '0')}`;
+    onSelect(selected);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <View style={{ backgroundColor: C.card, borderRadius: 16, padding: 20, width: 300, borderWidth: 1, borderColor: C.border }}>
+          {/* Year navigator */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <TouchableOpacity onPress={() => setPickerYear(y => y - 1)} style={{ padding: 8 }}>
+              <Text style={{ fontSize: 18, color: C.textMuted }}>‹</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: C.text }}>{pickerYear}</Text>
+            <TouchableOpacity onPress={() => setPickerYear(y => y + 1)} style={{ padding: 8 }}>
+              <Text style={{ fontSize: 18, color: C.textMuted }}>›</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Month grid */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {MONTH_NAMES_SHORT.map((name, idx) => {
+              const isSelected = pickerYear === y && idx === m - 1;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => handleSelect(idx)}
+                  style={{
+                    width: '30%',
+                    paddingVertical: 12,
+                    borderRadius: 10,
+                    alignItems: 'center',
+                    backgroundColor: isSelected ? C.teal : C.bg,
+                    borderWidth: 1,
+                    borderColor: isSelected ? C.teal : C.border,
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 13,
+                    fontWeight: '700',
+                    color: isSelected ? '#fff' : C.text,
+                  }}>
+                    {name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Today button */}
+          <TouchableOpacity
+            onPress={() => { onSelect(getCurrentMes()); onClose(); }}
+            style={{ marginTop: 14, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: C.purple + '20', borderWidth: 1, borderColor: C.purple + '40' }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: C.purple }}>Mes actual</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 // ─── IncomeRow ────────────────────────────────────────────────────────────────
 
 const IncomeRow = React.memo(({ label, item, onChangeMonto, onOpenPeriod }) => {
@@ -336,6 +423,7 @@ export default function PresupuestoScreen() {
   const [data, setData] = useState(null);
   const [expanded, setExpanded] = useState({ ingresos: true });
   const [periodModal, setPeriodModal] = useState({ visible: false, current: 'mensual', onSelect: () => { } });
+  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const saveTimer = useRef(null);
   const { colors: C } = useTheme();
 
@@ -419,8 +507,8 @@ export default function PresupuestoScreen() {
         <TouchableOpacity onPress={() => setMes(m => addMes(m, -1))} style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
           <Text style={{ fontSize: 18, color: C.textMuted }}>‹</Text>
         </TouchableOpacity>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: C.text }}>{mesLabel(mes)}</Text>
+        <TouchableOpacity onPress={() => setMonthPickerVisible(true)} style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: C.text }}>{mesLabel(mes)} ▾</Text>
           {mes === currentMes && (
             <View style={{ backgroundColor: C.teal + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginTop: 3 }}>
               <Text style={{ fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 0.8 }}>MES ACTUAL</Text>
@@ -436,7 +524,7 @@ export default function PresupuestoScreen() {
               <Text style={{ fontSize: 10, color: C.purple, fontWeight: '700', letterSpacing: 0.8 }}>MES FUTURO</Text>
             </View>
           )}
-        </View>
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => setMes(m => addMes(m, 1))} style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
           <Text style={{ fontSize: 18, color: C.textMuted }}>›</Text>
         </TouchableOpacity>
@@ -513,6 +601,13 @@ export default function PresupuestoScreen() {
         current={periodModal.current}
         onSelect={periodModal.onSelect}
         onClose={closePeriodModal}
+      />
+
+      <MonthYearPickerModal
+        visible={monthPickerVisible}
+        currentMes={mes}
+        onSelect={setMes}
+        onClose={() => setMonthPickerVisible(false)}
       />
     </ScrollView>
   );
