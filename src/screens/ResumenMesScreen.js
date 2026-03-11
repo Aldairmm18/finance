@@ -7,6 +7,7 @@ import {
   Animated,
   TouchableOpacity,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadDataMes, getCurrentMes, loadTransaccionesMes, loadTransaccionesAnio } from '../utils/storage';
@@ -145,6 +146,7 @@ export default function ResumenMesScreen() {
   const { colors: C } = useTheme();
   const [viewMode, setViewMode] = useState('mes'); // 'mes' | 'anio'
   const [anioSelected, setAnioSelected] = useState(new Date().getFullYear());
+  const currentYear = new Date().getFullYear();
 
   // ── Monthly state ──
   const [planned, setPlanned] = useState(null);
@@ -156,6 +158,12 @@ export default function ResumenMesScreen() {
   // ── Annual state ──
   const [anioTxs, setAnioTxs] = useState([]);
   const [anioLoading, setAnioLoading] = useState(false);
+
+  // ── Historic annual modal state ──
+  const [historicoVisible, setHistoricoVisible] = useState(false);
+  const [historicoYear, setHistoricoYear] = useState(currentYear - 1);
+  const [historicoLoading, setHistoricoLoading] = useState(false);
+  const [historicoStats, setHistoricoStats] = useState(null);
 
   const cardAnims = useRef([...Array(8)].map(() => new Animated.Value(0))).current;
 
@@ -193,6 +201,35 @@ export default function ResumenMesScreen() {
       setAnioTxs([]);
     } finally {
       setAnioLoading(false);
+    }
+  }, []);
+
+  // ── Historic annual aggregation (by month) ──
+  const loadHistorico = useCallback(async (year) => {
+    setHistoricoLoading(true);
+    try {
+      let totalIngresos = 0;
+      let totalGastos = 0;
+      for (let m = 1; m <= 12; m += 1) {
+        const mesKey = `${year}-${String(m).padStart(2, '0')}`;
+        const [d, transactions] = await Promise.all([
+          loadDataMes(mesKey),
+          loadTransaccionesMes(mesKey),
+        ]);
+        const base = computeTotals(d);
+        const merged = mergeTransacciones(base, transactions);
+        totalIngresos += merged?.ingresosMonthly || 0;
+        totalGastos += merged?.totalGastosMonthly || 0;
+      }
+      setHistoricoStats({
+        totalIngresos,
+        totalGastos,
+        balance: totalIngresos - totalGastos,
+      });
+    } catch {
+      setHistoricoStats(null);
+    } finally {
+      setHistoricoLoading(false);
     }
   }, []);
 
@@ -253,6 +290,8 @@ export default function ResumenMesScreen() {
   }
 
   const cloudDotColor = cloudStatus === 'synced' ? '#34d399' : cloudStatus === 'error' ? '#f472b6' : C.border;
+  const historicoMaxYear = currentYear - 1;
+  const historicoMinYear = 2000;
 
   return (
     <ScrollView
@@ -272,6 +311,28 @@ export default function ResumenMesScreen() {
         <Text style={{ fontSize: 13, color: C.textMuted, marginTop: 4, fontWeight: '500' }}>
           {viewMode === 'mes' ? mesLabel(mes) : `Año ${anioSelected}`}
         </Text>
+        <TouchableOpacity
+          onPress={() => {
+            setHistoricoVisible(true);
+            const safeYear = Math.min(historicoMaxYear, Math.max(historicoMinYear, historicoYear));
+            if (safeYear !== historicoYear) setHistoricoYear(safeYear);
+            loadHistorico(safeYear);
+          }}
+          style={{
+            alignSelf: 'flex-start',
+            marginTop: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: C.border,
+            backgroundColor: C.card,
+          }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: '700', color: C.textMuted }}>
+            Ver Histórico Anual
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* ── View mode toggle ── */}
@@ -565,6 +626,87 @@ export default function ResumenMesScreen() {
           })()}
         </>
       )}
+
+      {/* ── Modal Histórico Anual (consolidado por meses) ── */}
+      <Modal
+        visible={historicoVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setHistoricoVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 18 }}>
+          <View style={{ backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 18 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>
+                Histórico Anual
+              </Text>
+              <TouchableOpacity onPress={() => setHistoricoVisible(false)} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+                <Text style={{ fontSize: 18, color: C.textMuted }}>x</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>
+              Selecciona un año pasado
+            </Text>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.bg, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingVertical: 8, paddingHorizontal: 6, marginBottom: 16 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  const next = Math.max(historicoMinYear, historicoYear - 1);
+                  setHistoricoYear(next);
+                  loadHistorico(next);
+                }}
+                style={{ paddingHorizontal: 14, paddingVertical: 6 }}
+              >
+                <Text style={{ fontSize: 18, color: C.textMuted }}>‹</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: C.text }}>{historicoYear}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  const next = Math.min(historicoMaxYear, historicoYear + 1);
+                  setHistoricoYear(next);
+                  loadHistorico(next);
+                }}
+                style={{ paddingHorizontal: 14, paddingVertical: 6 }}
+                disabled={historicoYear >= historicoMaxYear}
+              >
+                <Text style={{ fontSize: 18, color: historicoYear >= historicoMaxYear ? C.border : C.textMuted }}>›</Text>
+              </TouchableOpacity>
+            </View>
+
+            {historicoLoading ? (
+              <View style={{ alignItems: 'center', paddingVertical: 28 }}>
+                <ActivityIndicator color={C.teal} size="small" />
+                <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 10 }}>Calculando...</Text>
+              </View>
+            ) : (
+              <View style={{ backgroundColor: C.bg, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}>
+                <View style={{ height: 3, backgroundColor: (historicoStats?.balance ?? 0) >= 0 ? C.teal : C.pink }} />
+                <View style={{ flexDirection: 'row', padding: 14 }}>
+                  <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderColor: C.border }}>
+                    <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Ingresos</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: C.teal }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                      {formatCOP(historicoStats?.totalIngresos || 0)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderColor: C.border }}>
+                    <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Gastos</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: C.pink }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                      {formatCOP(historicoStats?.totalGastos || 0)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Balance</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: (historicoStats?.balance ?? 0) >= 0 ? C.teal : C.pink }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                      {formatCOP(historicoStats?.balance || 0)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
