@@ -43,9 +43,8 @@ export function AuthProvider({ children }) {
         if (!supabase) throw new Error('Sin conexión a Supabase');
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        // Nuevos usuarios inician con datos vacíos (DEFAULT_DATA).
-        // La migración de datos 'default' solo se ejecuta manualmente
-        // via migrateDefaultData() para el primer usuario (dueño original).
+        // Cerrar sesión inmediatamente para que el usuario inicie sesión manualmente
+        await supabase.auth.signOut();
         return data;
     }, []);
 

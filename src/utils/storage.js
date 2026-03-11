@@ -4,16 +4,14 @@ import { supabase } from '../services/supabase';
 const STORAGE_KEY = '@finance_data_v1';
 const STORAGE_MES_PREFIX = '@finance_mes_v1';
 export const SYNC_KEY = '@finance_last_sync';
-const USER_ID = 'default';
-
-/** Retorna el user_id autenticado, o 'default' como fallback */
+/** Retorna el user_id autenticado, o null si no hay sesión */
 async function getUserId() {
-  if (!supabase) return USER_ID;
+  if (!supabase) return null;
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    return user?.id || USER_ID;
+    return user?.id || null;
   } catch {
-    return USER_ID;
+    return null;
   }
 }
 
@@ -138,7 +136,7 @@ function withTimeout(promise, ms = 6000) {
 export async function loadData() {
   const uid = await getUserId();
   // 1. Intentar Supabase (con timeout de 6s para no bloquear el arranque)
-  if (supabase) {
+  if (supabase && uid) {
     try {
       const { data, error } = await withTimeout(
         supabase
@@ -188,6 +186,7 @@ export async function saveData(data) {
   // Subir a Supabase en background (no bloquea la UI)
   if (supabase) {
     const uid = await getUserId();
+    if (!uid) return; // Sin usuario autenticado, solo guardar localmente
     withTimeout(
       supabase
         .from('presupuesto')
@@ -214,7 +213,7 @@ export async function loadDataMes(mes) {
   const uid = await getUserId();
 
   // 1. Intentar presupuesto_mensual en Supabase
-  if (supabase) {
+  if (supabase && uid) {
     try {
       const { data, error } = await withTimeout(
         supabase
@@ -261,6 +260,7 @@ export async function saveDataMes(mes, data) {
 
   if (supabase) {
     const uid = await getUserId();
+    if (!uid) return;
     withTimeout(
       supabase
         .from('presupuesto_mensual')
@@ -290,6 +290,7 @@ export async function syncData() {
 
     const data = JSON.parse(json);
     const uid = await getUserId();
+    if (!uid) return { success: false, reason: 'Usuario no autenticado' };
     const { error } = await withTimeout(
       supabase
         .from('presupuesto')
@@ -327,6 +328,7 @@ export async function loadTransaccionesMes(mes) {
   if (!supabase) return [];
   try {
     const uid = await getUserId();
+    if (!uid) return [];
     const m = mes || getCurrentMes();
     const [y, month] = m.split('-').map(Number);
     const start = new Date(y, month - 1, 1).toISOString().split('T')[0];
@@ -362,6 +364,7 @@ export async function loadExtraordinarios() {
     const today = now.toISOString().split('T')[0];
 
     const uid = await getUserId();
+    if (!uid) return [];
     const { data, error } = await withTimeout(
       supabase
         .from('transacciones')
@@ -387,6 +390,7 @@ export async function loadExtraordinarios() {
 export async function registrarExtraordinario({ descripcion, monto, categoria, tipo = 'gasto' }) {
   if (!supabase) throw new Error('Sin conexión a Supabase');
   const uid = await getUserId();
+  if (!uid) throw new Error('Usuario no autenticado');
   const today = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('transacciones')

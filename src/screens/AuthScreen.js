@@ -9,6 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Alert,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -47,7 +48,11 @@ export default function AuthScreen() {
                 await signIn(trimEmail, password);
             } else if (mode === 'register') {
                 await signUp(trimEmail, password);
-                setSuccess('¡Cuenta creada! Ya puedes usar la app.');
+                setEmail('');
+                setPassword('');
+                setMode('login');
+                setSuccess('¡Registro exitoso! Por favor inicia sesión.');
+                Alert.alert('Registro exitoso', 'Tu cuenta ha sido creada. Por favor inicia sesión.');
             } else {
                 await resetPassword(trimEmail);
                 setSuccess('Revisa tu correo para restablecer la contraseña.');
@@ -68,6 +73,8 @@ export default function AuthScreen() {
         setMode(newMode);
         setError('');
         setSuccess('');
+        setEmail('');
+        setPassword('');
     };
 
     return (
