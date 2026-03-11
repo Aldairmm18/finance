@@ -211,7 +211,7 @@ export default function GastosScreen() {
           <Text style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>{txs.length} transacciones</Text>
         </View>
         <TouchableOpacity onPress={() => { setLoading(true); setMes(m => addMes(m, 1)); }} style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
-          <Text style={{ fontSize: 18, color: M => mes >= currentMes ? C.border : C.textMuted }}>›</Text>
+          <Text style={{ fontSize: 18, color: C.textMuted }}>›</Text>
         </TouchableOpacity>
       </View>
 
