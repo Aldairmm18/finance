@@ -26,6 +26,7 @@ import {
   getCurrentMes,
   loadTransaccionesMes,
   registrarExtraordinario,
+  aplicarTraspasoSobrante,
 } from '../utils/storage';
 import { formatCOP, computeTotals, mergeTransacciones } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
@@ -424,7 +425,9 @@ export default function DashboardScreen() {
   const reload = useCallback(async () => {
     cardAnims.forEach(a => a.setValue(0));
     try {
-      const [d, txs] = await Promise.all([loadDataMes(getCurrentMes()), loadTransaccionesMes()]);
+      const mesActual = getCurrentMes();
+      await aplicarTraspasoSobrante(mesActual);
+      const [d, txs] = await Promise.all([loadDataMes(mesActual), loadTransaccionesMes()]);
       const base = computeTotals(d);
       setTotals(mergeTransacciones(base, txs));
       const extras = (txs || []).filter(tx => tx.es_extraordinario);

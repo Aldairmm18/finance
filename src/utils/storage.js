@@ -441,3 +441,50 @@ export async function registrarExtraordinario({ descripcion, monto, categoria, t
   if (error) throw error;
   return data;
 }
+
+/**
+ * Aplica el traspaso del sobrante del mes anterior al mes actual.
+ * Sobrante = Ingresos reales - Gastos reales (transacciones del mes anterior).
+ * Si hay sobrante, se registra como ingreso extraordinario en el mes actual.
+ * @param {string} mesActual Formato "YYYY-MM"
+ * @returns {{ applied: boolean, prevMes?: string, balance?: number }}
+ */
+export async function aplicarTraspasoSobrante(mesActual) {
+  if (!mesActual) return { applied: false };
+  const [y, m] = mesActual.split('-').map(Number);
+  if (!y || !m) return { applied: false };
+
+  const d = new Date(y, m - 2, 1); // mes anterior
+  const prevMes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const desc = 'Ahorro de traspaso mes anterior';
+
+  try {
+    const prevTxs = await loadTransaccionesMes(prevMes);
+    const totalIngresos = (prevTxs || [])
+      .filter(tx => tx.tipo === 'ingreso')
+      .reduce((sum, tx) => sum + (tx.monto || 0), 0);
+    const totalGastos = (prevTxs || [])
+      .filter(tx => tx.tipo === 'gasto')
+      .reduce((sum, tx) => sum + (tx.monto || 0), 0);
+    const balance = totalIngresos - totalGastos;
+
+    if (balance <= 0) return { applied: false, prevMes, balance };
+
+    const currentTxs = await loadTransaccionesMes(mesActual);
+    const exists = (currentTxs || []).some(tx =>
+      String(tx.descripcion || '').trim().toLowerCase() === desc.toLowerCase()
+    );
+    if (exists) return { applied: false, prevMes, balance };
+
+    await registrarExtraordinario({
+      descripcion: desc,
+      monto: balance,
+      categoria: 'ahorro',
+      tipo: 'ingreso',
+    });
+
+    return { applied: true, prevMes, balance };
+  } catch {
+    return { applied: false, prevMes };
+  }
+}

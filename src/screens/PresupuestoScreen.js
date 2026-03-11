@@ -4,7 +4,7 @@ import {
   StyleSheet, Modal, LayoutAnimation, UIManager, Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { loadDataMes, saveDataMes, getCurrentMes } from '../utils/storage';
+import { loadDataMes, saveDataMes, getCurrentMes, computeRollover } from '../utils/storage';
 import { PERIODICIDADES, formatCOP, toMonthly, toAnnual, parseAmount } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 
@@ -424,6 +424,8 @@ export default function PresupuestoScreen() {
   const [expanded, setExpanded] = useState({ ingresos: true });
   const [periodModal, setPeriodModal] = useState({ visible: false, current: 'mensual', onSelect: () => { } });
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+  const [rollover, setRollover] = useState({ surplus: 0, prevMes: '' });
+  const [rolloverDismissed, setRolloverDismissed] = useState(false);
   const saveTimer = useRef(null);
   const { colors: C } = useTheme();
 
@@ -432,7 +434,16 @@ export default function PresupuestoScreen() {
 
   useFocusEffect(useCallback(() => {
     setData(null);
-    loadDataMes(mes).then(d => setData(d));
+    setRolloverDismissed(false);
+    loadDataMes(mes).then(d => {
+      setData(d);
+      // Check if rollover already applied for this month
+      if (d?.rolloverAplicado?.[mes]) {
+        setRollover({ surplus: 0, prevMes: '' });
+      }
+    });
+    // Load rollover from previous month
+    computeRollover(mes).then(r => setRollover(r)).catch(() => {});
   }, [mes]));
 
   const s = useMemo(() => makeStyles(C), [C]);
@@ -501,6 +512,59 @@ export default function PresupuestoScreen() {
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <Text style={s.title}>Presupuesto</Text>
+
+      {/* ── Rollover banner ── */}
+      {rollover.surplus > 0 && !rolloverDismissed && !data?.rolloverAplicado?.[mes] && (
+        <View style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.teal + '60', padding: 14, marginBottom: 16, overflow: 'hidden' }}>
+          <View style={{ height: 3, backgroundColor: C.teal, position: 'absolute', top: 0, left: 0, right: 0 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ fontSize: 16, marginRight: 8 }}>💰</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>Sobrante del mes anterior</Text>
+              <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>Tienes {formatCOP(rollover.surplus)} disponibles de {rollover.prevMes}</Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => {
+                setData(prev => {
+                  const currentAhorro = parseAmount(prev.ingresos.ahorro?.monto || '0');
+                  const newAhorro = currentAhorro + rollover.surplus;
+                  const next = {
+                    ...prev,
+                    ingresos: {
+                      ...prev.ingresos,
+                      ahorro: { ...prev.ingresos.ahorro, monto: String(newAhorro) },
+                    },
+                    rolloverAplicado: { ...(prev.rolloverAplicado || {}), [mes]: rollover.surplus },
+                  };
+                  saveDataMes(mes, next);
+                  return next;
+                });
+                setRollover({ surplus: 0, prevMes: '' });
+              }}
+              style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: C.teal }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>Aplicar como ahorro</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setRolloverDismissed(true)}
+              style={{ paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: C.textMuted }}>Ignorar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ── Already applied rollover info ── */}
+      {data?.rolloverAplicado?.[mes] > 0 && (
+        <View style={{ backgroundColor: C.teal + '12', borderRadius: 10, borderWidth: 1, borderColor: C.teal + '30', paddingHorizontal: 14, paddingVertical: 10, marginBottom: 16 }}>
+          <Text style={{ fontSize: 12, color: C.teal, fontWeight: '600' }}>
+            ✓ Traspaso de {formatCOP(data.rolloverAplicado[mes])} aplicado como ahorro
+          </Text>
+        </View>
+      )}
 
       {/* ── Navegador de mes ── */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingVertical: 10, paddingHorizontal: 6 }}>
