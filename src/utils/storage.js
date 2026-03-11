@@ -352,6 +352,37 @@ export async function loadTransaccionesMes(mes) {
 }
 
 /**
+ * Carga TODAS las transacciones de un año completo desde Supabase.
+ * @param {number} year  Año (ej: 2026). Default: año actual.
+ * Retorna [] si Supabase no está disponible.
+ */
+export async function loadTransaccionesAnio(year) {
+  if (!supabase) return [];
+  try {
+    const uid = await getUserId();
+    if (!uid) return [];
+    const y = year || new Date().getFullYear();
+    const start = `${y}-01-01`;
+    const end = `${y}-12-31`;
+
+    const { data, error } = await withTimeout(
+      supabase
+        .from('transacciones')
+        .select('*')
+        .eq('user_id', uid)
+        .gte('fecha', start)
+        .lte('fecha', end)
+        .order('fecha', { ascending: false }),
+      10000,
+    );
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Carga gastos extraordinarios del mes actual desde Supabase.
  * Retorna [] si Supabase no está disponible o hay error de red.
  */

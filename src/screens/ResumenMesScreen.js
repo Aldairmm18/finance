@@ -9,7 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { loadDataMes, getCurrentMes, loadTransaccionesMes } from '../utils/storage';
+import { loadDataMes, getCurrentMes, loadTransaccionesMes, loadTransaccionesAnio } from '../utils/storage';
 import { computeTotals, mergeTransacciones, formatCOP, toMonthly } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
@@ -136,18 +136,32 @@ function TxRow({ tx }) {
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
+const MONTH_NAMES = [
+  'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+];
+
 export default function ResumenMesScreen() {
   const { colors: C } = useTheme();
-  const [planned, setPlanned] = useState(null);  // totals from budget
-  const [actual, setActual] = useState(null);   // totals after merge
+  const [viewMode, setViewMode] = useState('mes'); // 'mes' | 'anio'
+  const [anioSelected, setAnioSelected] = useState(new Date().getFullYear());
+
+  // ── Monthly state ──
+  const [planned, setPlanned] = useState(null);
+  const [actual, setActual] = useState(null);
   const [txs, setTxs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('idle');
+
+  // ── Annual state ──
+  const [anioTxs, setAnioTxs] = useState([]);
+  const [anioLoading, setAnioLoading] = useState(false);
 
   const cardAnims = useRef([...Array(8)].map(() => new Animated.Value(0))).current;
 
   const mes = getCurrentMes();
 
+  // ── Load monthly data ──
   const loadAll = useCallback(async () => {
     cardAnims.forEach(a => a.setValue(0));
     try {
@@ -169,17 +183,67 @@ export default function ResumenMesScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { loadAll(); }, [loadAll]));
+  // ── Load annual data ──
+  const loadAnio = useCallback(async (year) => {
+    setAnioLoading(true);
+    try {
+      const data = await loadTransaccionesAnio(year);
+      setAnioTxs(data || []);
+    } catch {
+      setAnioTxs([]);
+    } finally {
+      setAnioLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    if (viewMode === 'mes') loadAll();
+    else loadAnio(anioSelected);
+  }, [loadAll, loadAnio, viewMode, anioSelected]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadAll();
+    if (viewMode === 'mes') await loadAll();
+    else await loadAnio(anioSelected);
     setRefreshing(false);
-  }, [loadAll]);
+  }, [loadAll, loadAnio, viewMode, anioSelected]);
 
   useRealtimeSync(loadAll);
 
-  if (!actual) {
+  // ── Annual aggregation ──
+  const anioStats = useMemo(() => {
+    if (anioTxs.length === 0) return null;
+    let totalGastos = 0;
+    let totalIngresos = 0;
+    const gastoByCat = {};
+    const monthlyGastos = new Array(12).fill(0);
+    const monthlyIngresos = new Array(12).fill(0);
+
+    for (const tx of anioTxs) {
+      const m = tx.monto || 0;
+      const monthIdx = tx.fecha ? parseInt(tx.fecha.split('-')[1], 10) - 1 : 0;
+      if (tx.tipo === 'ingreso') {
+        totalIngresos += m;
+        monthlyIngresos[monthIdx] += m;
+      } else {
+        totalGastos += m;
+        const cat = tx.categoria || 'otro';
+        gastoByCat[cat] = (gastoByCat[cat] || 0) + m;
+        monthlyGastos[monthIdx] += m;
+      }
+    }
+
+    return {
+      totalGastos, totalIngresos,
+      balance: totalIngresos - totalGastos,
+      gastoByCat,
+      monthlyGastos, monthlyIngresos,
+      txCount: anioTxs.length,
+    };
+  }, [anioTxs]);
+
+  // ── Loading state ──
+  if (viewMode === 'mes' && !actual) {
     return (
       <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator color={C.teal} size="small" />
@@ -190,20 +254,6 @@ export default function ResumenMesScreen() {
 
   const cloudDotColor = cloudStatus === 'synced' ? '#34d399' : cloudStatus === 'error' ? '#f472b6' : C.border;
 
-  // Balance
-  const balance = actual.ingresosMonthly - actual.totalGastosMonthly;
-  const balColor = balance >= 0 ? C.teal : C.pink;
-
-  // Categorías con actividad o presupuesto
-  const catEntries = Object.keys(CAT_META).map(k => ({
-    key: k,
-    actual: actual.gastosByCategory[k] || 0,
-    planned: planned.gastosByCategory[k] || 0,
-  })).filter(e => e.actual > 0 || e.planned > 0);
-
-  // Transacciones recientes (últimas 12)
-  const recentTxs = [...txs].sort((a, b) => b.fecha?.localeCompare(a.fecha)).slice(0, 12);
-
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: C.bg }}
@@ -212,7 +262,7 @@ export default function ResumenMesScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.teal} />}
     >
       {/* ── Header ── */}
-      <View style={{ marginBottom: 24 }}>
+      <View style={{ marginBottom: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Text style={{ fontSize: 32, fontWeight: '900', color: C.text, letterSpacing: -0.5 }}>
             Resumen
@@ -220,132 +270,300 @@ export default function ResumenMesScreen() {
           <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: cloudDotColor, marginTop: 4 }} />
         </View>
         <Text style={{ fontSize: 13, color: C.textMuted, marginTop: 4, fontWeight: '500' }}>
-          {mesLabel(mes)}
+          {viewMode === 'mes' ? mesLabel(mes) : `Año ${anioSelected}`}
         </Text>
-        <View style={{ height: 1, backgroundColor: C.border, marginTop: 18 }} />
       </View>
 
-      {/* ── Totales principales ── */}
-      <Animated.View style={{
-        opacity: cardAnims[0],
-        transform: [{ translateY: cardAnims[0].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-        backgroundColor: C.card,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: C.border,
-        overflow: 'hidden',
-        marginBottom: 12,
-      }}>
-        <View style={{ height: 3, backgroundColor: balColor }} />
-        <View style={{ flexDirection: 'row', padding: 16, gap: 0 }}>
-          <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderColor: C.border }}>
-            <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Ingresos</Text>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: C.teal }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              {formatCOP(actual.ingresosMonthly)}
+      {/* ── View mode toggle ── */}
+      <View style={{ flexDirection: 'row', backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.border, marginBottom: 16, overflow: 'hidden' }}>
+        {[{ key: 'mes', label: 'Mes actual' }, { key: 'anio', label: 'Histórico anual' }].map(opt => (
+          <TouchableOpacity
+            key={opt.key}
+            onPress={() => setViewMode(opt.key)}
+            style={{
+              flex: 1,
+              paddingVertical: 10,
+              alignItems: 'center',
+              backgroundColor: viewMode === opt.key ? C.teal : 'transparent',
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '700', color: viewMode === opt.key ? '#fff' : C.textMuted }}>
+              {opt.label}
             </Text>
-          </View>
-          <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderColor: C.border }}>
-            <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Gastos</Text>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: C.pink }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              {formatCOP(actual.totalGastosMonthly)}
-            </Text>
-          </View>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Balance</Text>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: balColor }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              {formatCOP(balance)}
-            </Text>
-          </View>
-        </View>
-      </Animated.View>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      {/* ── Tipo de gasto (esenciales / no esenciales / créditos) ── */}
-      <Animated.View style={{
-        opacity: cardAnims[1],
-        transform: [{ translateY: cardAnims[1].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-        backgroundColor: C.card,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: C.border,
-        overflow: 'hidden',
-        marginBottom: 20,
-      }}>
-        <View style={{ height: 3, backgroundColor: C.purple }} />
-        <View style={{ flexDirection: 'row', padding: 14, gap: 0 }}>
-          {[
-            { label: 'Esenciales', val: actual.esencialesMonthly, color: C.teal },
-            { label: 'No Esenciales', val: actual.noEsencialesMonthly, color: C.pink },
-            { label: 'Créditos', val: actual.creditosMonthly, color: C.purple },
-          ].map((item, i) => (
-            <View key={item.label} style={{ flex: 1, alignItems: 'center', borderRightWidth: i < 2 ? 1 : 0, borderColor: C.border }}>
-              <Text style={{ fontSize: 9, color: C.textMuted, fontWeight: '700', letterSpacing: 0.9, textTransform: 'uppercase', marginBottom: 5, textAlign: 'center' }}>{item.label}</Text>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: item.color }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {formatCOP(item.val)}
+      {/* ── ANNUAL VIEW ── */}
+      {viewMode === 'anio' && (
+        <>
+          {/* Year navigation */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingVertical: 8, paddingHorizontal: 6, marginBottom: 16 }}>
+            <TouchableOpacity onPress={() => setAnioSelected(y => y - 1)} style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
+              <Text style={{ fontSize: 18, color: C.textMuted }}>‹</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: C.text }}>{anioSelected}</Text>
+            <TouchableOpacity onPress={() => setAnioSelected(y => y + 1)} style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
+              <Text style={{ fontSize: 18, color: C.textMuted }}>›</Text>
+            </TouchableOpacity>
+          </View>
+
+          {anioLoading ? (
+            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+              <ActivityIndicator color={C.teal} size="small" />
+              <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 12 }}>Cargando año {anioSelected}...</Text>
+            </View>
+          ) : !anioStats ? (
+            <View style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 28, alignItems: 'center' }}>
+              <Text style={{ fontSize: 28, marginBottom: 8 }}>📊</Text>
+              <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>
+                Sin transacciones registradas en {anioSelected}
               </Text>
             </View>
-          ))}
-        </View>
-      </Animated.View>
+          ) : (
+            <>
+              {/* Annual totals */}
+              <View style={{ backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, overflow: 'hidden', marginBottom: 12 }}>
+                <View style={{ height: 3, backgroundColor: anioStats.balance >= 0 ? C.teal : C.pink }} />
+                <View style={{ flexDirection: 'row', padding: 16 }}>
+                  <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderColor: C.border }}>
+                    <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Ingresos</Text>
+                    <Text style={{ fontSize: 17, fontWeight: '800', color: C.teal }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                      {formatCOP(anioStats.totalIngresos)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderColor: C.border }}>
+                    <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Gastos</Text>
+                    <Text style={{ fontSize: 17, fontWeight: '800', color: C.pink }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                      {formatCOP(anioStats.totalGastos)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Balance</Text>
+                    <Text style={{ fontSize: 17, fontWeight: '800', color: anioStats.balance >= 0 ? C.teal : C.pink }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                      {formatCOP(anioStats.balance)}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+                  <Text style={{ fontSize: 11, color: C.textMuted, textAlign: 'center' }}>
+                    {anioStats.txCount} transacciones en {anioSelected}
+                  </Text>
+                </View>
+              </View>
 
-      {/* ── Progreso por categoría ── */}
-      <Animated.View style={{
-        opacity: cardAnims[2],
-        transform: [{ translateY: cardAnims[2].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-        marginBottom: 8,
-      }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
-          Progreso por categoría
-        </Text>
-      </Animated.View>
+              {/* Category breakdown */}
+              <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12, marginTop: 8 }}>
+                Gastos por categoría
+              </Text>
+              {Object.entries(anioStats.gastoByCat)
+                .sort(([, a], [, b]) => b - a)
+                .map(([catKey, amount]) => {
+                  const meta = CAT_META[catKey] || { label: catKey, icon: '•', color: C.purple };
+                  const pct = anioStats.totalGastos > 0 ? Math.round((amount / anioStats.totalGastos) * 100) : 0;
+                  return (
+                    <View key={catKey} style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                        <Text style={{ fontSize: 18, marginRight: 8 }}>{meta.icon}</Text>
+                        <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: C.text }}>{meta.label}</Text>
+                        <View style={{ backgroundColor: (meta.color || C.purple) + '22', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: meta.color || C.purple }}>{pct}%</Text>
+                        </View>
+                      </View>
+                      <View style={{ height: 5, backgroundColor: C.border, borderRadius: 3, overflow: 'hidden' }}>
+                        <View style={{ height: 5, width: `${pct}%`, backgroundColor: meta.color || C.purple, borderRadius: 3 }} />
+                      </View>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: C.text, marginTop: 6 }}>
+                        {formatCOP(amount)}
+                      </Text>
+                    </View>
+                  );
+                })}
 
-      {catEntries.length === 0 ? (
-        <Animated.View style={{
-          opacity: cardAnims[3],
-          backgroundColor: C.card,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: C.border,
-          padding: 28,
-          alignItems: 'center',
-          marginBottom: 20,
-        }}>
-          <Text style={{ fontSize: 28, marginBottom: 8 }}>📊</Text>
-          <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>
-            {'Aún no hay transacciones ni\npresupuesto registrados este mes'}
-          </Text>
-        </Animated.View>
-      ) : (
-        catEntries.map((e, i) => (
-          <CategoryProgressCard key={e.key} catKey={e.key} actual={e.actual} planned={e.planned} animVal={cardAnims[Math.min(3 + i, 7)]} />
-        ))
+              {/* Monthly comparison bars */}
+              <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12, marginTop: 16 }}>
+                Comparación mensual
+              </Text>
+              <View style={{ backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 16, marginBottom: 8 }}>
+                {(() => {
+                  const maxVal = Math.max(...anioStats.monthlyGastos, ...anioStats.monthlyIngresos, 1);
+                  return MONTH_NAMES.map((name, idx) => {
+                    const g = anioStats.monthlyGastos[idx];
+                    const ing = anioStats.monthlyIngresos[idx];
+                    if (g === 0 && ing === 0) return null;
+                    return (
+                      <View key={idx} style={{ marginBottom: 10 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: C.text }}>{name}</Text>
+                          <Text style={{ fontSize: 11, color: C.textMuted }}>
+                            Bal: <Text style={{ fontWeight: '700', color: ing - g >= 0 ? C.teal : C.pink }}>{formatCOP(ing - g)}</Text>
+                          </Text>
+                        </View>
+                        <View style={{ height: 4, backgroundColor: C.teal + '40', borderRadius: 2, overflow: 'hidden', marginBottom: 2 }}>
+                          <View style={{ height: 4, width: `${Math.round((ing / maxVal) * 100)}%`, backgroundColor: C.teal, borderRadius: 2 }} />
+                        </View>
+                        <View style={{ height: 4, backgroundColor: C.pink + '40', borderRadius: 2, overflow: 'hidden' }}>
+                          <View style={{ height: 4, width: `${Math.round((g / maxVal) * 100)}%`, backgroundColor: C.pink, borderRadius: 2 }} />
+                        </View>
+                      </View>
+                    );
+                  });
+                })()}
+                <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ width: 10, height: 4, borderRadius: 2, backgroundColor: C.teal }} />
+                    <Text style={{ fontSize: 10, color: C.textMuted }}>Ingresos</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ width: 10, height: 4, borderRadius: 2, backgroundColor: C.pink }} />
+                    <Text style={{ fontSize: 10, color: C.textMuted }}>Gastos</Text>
+                  </View>
+                </View>
+              </View>
+            </>
+          )}
+        </>
       )}
 
-      {/* ── Últimas transacciones ── */}
-      {recentTxs.length > 0 && (
-        <Animated.View style={{
-          opacity: cardAnims[7],
-          transform: [{ translateY: cardAnims[7].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-          backgroundColor: C.card,
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: C.border,
-          overflow: 'hidden',
-          marginTop: 8,
-          marginBottom: 8,
-        }}>
-          <View style={{ height: 3, backgroundColor: C.teal }} />
-          <View style={{ padding: 16 }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 }}>
-              Últimas transacciones
+      {/* ── MONTHLY VIEW (original) ── */}
+      {viewMode === 'mes' && actual && (
+        <>
+          <View style={{ height: 1, backgroundColor: C.border, marginBottom: 20 }} />
+
+          {/* ── Totales principales ── */}
+          <Animated.View style={{
+            opacity: cardAnims[0],
+            transform: [{ translateY: cardAnims[0].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+            backgroundColor: C.card,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: C.border,
+            overflow: 'hidden',
+            marginBottom: 12,
+          }}>
+            <View style={{ height: 3, backgroundColor: (actual.ingresosMonthly - actual.totalGastosMonthly) >= 0 ? C.teal : C.pink }} />
+            <View style={{ flexDirection: 'row', padding: 16, gap: 0 }}>
+              <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderColor: C.border }}>
+                <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Ingresos</Text>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: C.teal }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {formatCOP(actual.ingresosMonthly)}
+                </Text>
+              </View>
+              <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderColor: C.border }}>
+                <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Gastos</Text>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: C.pink }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {formatCOP(actual.totalGastosMonthly)}
+                </Text>
+              </View>
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>Balance</Text>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: (actual.ingresosMonthly - actual.totalGastosMonthly) >= 0 ? C.teal : C.pink }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {formatCOP(actual.ingresosMonthly - actual.totalGastosMonthly)}
+                </Text>
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* ── Tipo de gasto ── */}
+          <Animated.View style={{
+            opacity: cardAnims[1],
+            transform: [{ translateY: cardAnims[1].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+            backgroundColor: C.card,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: C.border,
+            overflow: 'hidden',
+            marginBottom: 20,
+          }}>
+            <View style={{ height: 3, backgroundColor: C.purple }} />
+            <View style={{ flexDirection: 'row', padding: 14, gap: 0 }}>
+              {[
+                { label: 'Esenciales', val: actual.esencialesMonthly, color: C.teal },
+                { label: 'No Esenciales', val: actual.noEsencialesMonthly, color: C.pink },
+                { label: 'Créditos', val: actual.creditosMonthly, color: C.purple },
+              ].map((item, i) => (
+                <View key={item.label} style={{ flex: 1, alignItems: 'center', borderRightWidth: i < 2 ? 1 : 0, borderColor: C.border }}>
+                  <Text style={{ fontSize: 9, color: C.textMuted, fontWeight: '700', letterSpacing: 0.9, textTransform: 'uppercase', marginBottom: 5, textAlign: 'center' }}>{item.label}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: item.color }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                    {formatCOP(item.val)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+
+          {/* ── Progreso por categoría ── */}
+          <Animated.View style={{
+            opacity: cardAnims[2],
+            transform: [{ translateY: cardAnims[2].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+            marginBottom: 8,
+          }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
+              Progreso por categoría
             </Text>
-            <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
-              {txs.length} registradas este mes
-            </Text>
-            {recentTxs.map((tx, i) => (
-              <TxRow key={tx.id ?? i} tx={tx} />
-            ))}
-          </View>
-        </Animated.View>
+          </Animated.View>
+
+          {(() => {
+            const catEntries = Object.keys(CAT_META).map(k => ({
+              key: k,
+              actual: actual.gastosByCategory[k] || 0,
+              planned: planned?.gastosByCategory[k] || 0,
+            })).filter(e => e.actual > 0 || e.planned > 0);
+
+            return catEntries.length === 0 ? (
+              <Animated.View style={{
+                opacity: cardAnims[3],
+                backgroundColor: C.card,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: C.border,
+                padding: 28,
+                alignItems: 'center',
+                marginBottom: 20,
+              }}>
+                <Text style={{ fontSize: 28, marginBottom: 8 }}>📊</Text>
+                <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>
+                  {'Aún no hay transacciones ni\npresupuesto registrados este mes'}
+                </Text>
+              </Animated.View>
+            ) : (
+              catEntries.map((e, i) => (
+                <CategoryProgressCard key={e.key} catKey={e.key} actual={e.actual} planned={e.planned} animVal={cardAnims[Math.min(3 + i, 7)]} />
+              ))
+            );
+          })()}
+
+          {/* ── Últimas transacciones ── */}
+          {(() => {
+            const recentTxs = [...txs].sort((a, b) => b.fecha?.localeCompare(a.fecha)).slice(0, 12);
+            return recentTxs.length > 0 ? (
+              <Animated.View style={{
+                opacity: cardAnims[7],
+                transform: [{ translateY: cardAnims[7].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+                backgroundColor: C.card,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: C.border,
+                overflow: 'hidden',
+                marginTop: 8,
+                marginBottom: 8,
+              }}>
+                <View style={{ height: 3, backgroundColor: C.teal }} />
+                <View style={{ padding: 16 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 }}>
+                    Últimas transacciones
+                  </Text>
+                  <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
+                    {txs.length} registradas este mes
+                  </Text>
+                  {recentTxs.map((tx, i) => (
+                    <TxRow key={tx.id ?? i} tx={tx} />
+                  ))}
+                </View>
+              </Animated.View>
+            ) : null;
+          })()}
+        </>
       )}
     </ScrollView>
   );
