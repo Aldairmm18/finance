@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
@@ -188,7 +189,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
   const [monto, setMonto] = useState('');
   const [categoria, setCategoria] = useState('otros');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const cats = tipo === 'ingreso' ? EXTRA_CATS_INGRESO : EXTRA_CATS_GASTO;
   const accentColor = tipo === 'ingreso' ? C.teal : C.pink;
@@ -199,7 +200,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
     setMonto('');
     setCategoria('otros');
     setError('');
-    setLoading(false);
+    setIsSubmitting(false);
   };
 
   const handleClose = () => {
@@ -214,11 +215,13 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
   };
 
   const handleSubmit = async () => {
+    Keyboard.dismiss();
+    if (isSubmitting) return;
     const montoNum = parseFloat(String(monto).replace(/[^0-9.]/g, ''));
     if (!descripcion.trim()) { setError('Ingresa una descripcion'); return; }
     if (!montoNum || montoNum <= 0) { setError('Ingresa un monto valido'); return; }
     setError('');
-    setLoading(true);
+    setIsSubmitting(true);
     try {
       await registrarExtraordinario({
         descripcion: descripcion.trim(),
@@ -230,7 +233,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
       onSuccess();
     } catch (e) {
       setError(e.message || 'Error al guardar');
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -282,6 +285,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
               <TouchableOpacity
                 key={opt.key}
                 onPress={() => handleTipoChange(opt.key)}
+                disabled={isSubmitting}
                 style={{
                   flex: 1,
                   paddingVertical: 10,
@@ -316,7 +320,9 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
             placeholderTextColor={C.textMuted}
             value={descripcion}
             onChangeText={setDescripcion}
-            returnKeyType="next"
+            blurOnSubmit={true}
+            returnKeyType="done"
+            editable={!isSubmitting}
           />
 
           {/* Monto */}
@@ -340,7 +346,9 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
             value={monto}
             onChangeText={setMonto}
             keyboardType="numeric"
+            blurOnSubmit={true}
             returnKeyType="done"
+            editable={!isSubmitting}
           />
           {monto ? (
             <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
@@ -359,6 +367,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
               <TouchableOpacity
                 key={cat.key}
                 onPress={() => setCategoria(cat.key)}
+                disabled={isSubmitting}
                 style={{
                   paddingHorizontal: 12,
                   paddingVertical: 6,
@@ -387,15 +396,16 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
           {/* Boton guardar */}
           <TouchableOpacity
             onPress={handleSubmit}
-            disabled={loading}
+            disabled={isSubmitting}
             style={{
               backgroundColor: accentColor,
               borderRadius: 12,
               paddingVertical: 14,
               alignItems: 'center',
+              opacity: isSubmitting ? 0.7 : 1,
             }}
           >
-            {loading ? (
+            {isSubmitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.3 }}>
