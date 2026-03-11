@@ -292,6 +292,7 @@ export default function ResumenMesScreen() {
   const cloudDotColor = cloudStatus === 'synced' ? '#34d399' : cloudStatus === 'error' ? '#f472b6' : C.border;
   const historicoMaxYear = currentYear - 1;
   const historicoMinYear = 2000;
+  const historicoHasPastYears = historicoMaxYear >= historicoMinYear;
 
   return (
     <ScrollView
@@ -313,11 +314,13 @@ export default function ResumenMesScreen() {
         </Text>
         <TouchableOpacity
           onPress={() => {
+            if (!historicoHasPastYears) return;
             setHistoricoVisible(true);
             const safeYear = Math.min(historicoMaxYear, Math.max(historicoMinYear, historicoYear));
             if (safeYear !== historicoYear) setHistoricoYear(safeYear);
             loadHistorico(safeYear);
           }}
+          disabled={!historicoHasPastYears}
           style={{
             alignSelf: 'flex-start',
             marginTop: 10,
@@ -327,6 +330,7 @@ export default function ResumenMesScreen() {
             borderWidth: 1,
             borderColor: C.border,
             backgroundColor: C.card,
+            opacity: historicoHasPastYears ? 1 : 0.5,
           }}
         >
           <Text style={{ fontSize: 12, fontWeight: '700', color: C.textMuted }}>
@@ -664,6 +668,7 @@ export default function ResumenMesScreen() {
               <TouchableOpacity
                 onPress={() => {
                   const next = Math.min(historicoMaxYear, historicoYear + 1);
+                  if (next === historicoYear) return;
                   setHistoricoYear(next);
                   loadHistorico(next);
                 }}
@@ -679,7 +684,7 @@ export default function ResumenMesScreen() {
                 <ActivityIndicator color={C.teal} size="small" />
                 <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 10 }}>Calculando...</Text>
               </View>
-            ) : (
+            ) : (historicoStats && (historicoStats.totalIngresos > 0 || historicoStats.totalGastos > 0)) ? (
               <View style={{ backgroundColor: C.bg, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}>
                 <View style={{ height: 3, backgroundColor: (historicoStats?.balance ?? 0) >= 0 ? C.teal : C.pink }} />
                 <View style={{ flexDirection: 'row', padding: 14 }}>
@@ -702,6 +707,13 @@ export default function ResumenMesScreen() {
                     </Text>
                   </View>
                 </View>
+              </View>
+            ) : (
+              <View style={{ backgroundColor: C.bg, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 22, alignItems: 'center' }}>
+                <Text style={{ fontSize: 26, marginBottom: 8 }}>📭</Text>
+                <Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center' }}>
+                  Sin registros para {historicoYear}
+                </Text>
               </View>
             )}
           </View>
