@@ -8,12 +8,14 @@ import {
   TouchableOpacity,
   RefreshControl,
   Modal,
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadDataMes, getCurrentMes, loadTransaccionesMes, loadTransaccionesAnio } from '../utils/storage';
 import { computeTotals, mergeTransacciones, formatCOP, toMonthly } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { supabase } from '../services/supabase';
 
 // ─── Metadata de categorías ───────────────────────────────────────────────────
 
@@ -114,13 +116,17 @@ function CategoryProgressCard({ catKey, actual, planned, animVal }) {
 
 // ─── TxRow: fila de transacción ───────────────────────────────────────────────
 
-function TxRow({ tx }) {
+function TxRow({ tx, onLongPress }) {
   const { colors: C } = useTheme();
   const isIngreso = tx.tipo === 'ingreso';
   const cat = TIPO_LABELS[tx.categoria] || (tx.categoria || 'Otro');
   const fecha = tx.fecha ? tx.fecha.slice(5) : '';  // MM-DD
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderColor: C.border }}>
+    <TouchableOpacity
+      onLongPress={onLongPress}
+      activeOpacity={0.7}
+      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderColor: C.border }}
+    >
       <View style={{ flex: 1, marginRight: 8 }}>
         <Text style={{ fontSize: 13, color: C.text, fontWeight: '500' }} numberOfLines={1}>
           {tx.descripcion || cat}
@@ -131,7 +137,7 @@ function TxRow({ tx }) {
       <Text style={{ fontSize: 13, fontWeight: '800', color: isIngreso ? C.teal : C.pink }}>
         {isIngreso ? '+' : '-'}{formatCOP(tx.monto || 0)}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -203,6 +209,36 @@ export default function ResumenMesScreen() {
       setAnioLoading(false);
     }
   }, []);
+
+  const eliminarTransaccion = useCallback(async (id) => {
+    if (!id) return;
+    if (!supabase) throw new Error('Sin conexión a Supabase');
+    const { error } = await supabase.from('transacciones').delete().eq('id', id);
+    if (error) throw error;
+    await loadAll();
+  }, [loadAll]);
+
+  const confirmarEliminacion = useCallback((id) => {
+    if (!id) return;
+    Alert.alert(
+      'Eliminar registro',
+      '¿Estás seguro de que deseas eliminar este movimiento?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await eliminarTransaccion(id);
+            } catch (e) {
+              Alert.alert('Error', e?.message || 'No se pudo eliminar el movimiento.');
+            }
+          },
+        },
+      ],
+    );
+  }, [eliminarTransaccion]);
 
   // ── Historic annual aggregation (by month) ──
   const loadHistorico = useCallback(async (year) => {
@@ -622,7 +658,7 @@ export default function ResumenMesScreen() {
                     {txs.length} registradas este mes
                   </Text>
                   {recentTxs.map((tx, i) => (
-                    <TxRow key={tx.id ?? i} tx={tx} />
+                    <TxRow key={tx.id ?? i} tx={tx} onLongPress={() => confirmarEliminacion(tx.id)} />
                   ))}
                 </View>
               </Animated.View>

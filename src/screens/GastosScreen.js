@@ -9,6 +9,7 @@ import {
   TextInput,
   RefreshControl,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
@@ -16,8 +17,10 @@ import { loadTransaccionesMes, getCurrentMes } from '../utils/storage';
 import { formatCOP } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { supabase } from '../services/supabase';
 
 const screenWidth = Dimensions.get('window').width;
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
@@ -55,7 +58,7 @@ function addMes(mes, delta) {
 
 // ─── TxRow ────────────────────────────────────────────────────────────────────
 
-function TxRow({ tx, animVal }) {
+function TxRow({ tx, animVal, onLongPress }) {
   const { colors: C } = useTheme();
   const isIngreso = tx.tipo === 'ingreso';
   const fecha = tx.fecha ? tx.fecha.slice(5).replace('-', '/') : '';
@@ -64,10 +67,14 @@ function TxRow({ tx, animVal }) {
     transform: [{ translateY: animVal.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
   } : {};
   return (
-    <Animated.View style={[
-      { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderColor: C.border },
-      animStyle,
-    ]}>
+    <AnimatedTouchable
+      onLongPress={onLongPress}
+      activeOpacity={0.7}
+      style={[
+        { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderColor: C.border },
+        animStyle,
+      ]}
+    >
       {/* Color dot */}
       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: catColor(tx.categoria), marginRight: 10, flexShrink: 0 }} />
       <View style={{ flex: 1, marginRight: 8 }}>
@@ -82,7 +89,7 @@ function TxRow({ tx, animVal }) {
       <Text style={{ fontSize: 13, fontWeight: '800', color: isIngreso ? C.teal : C.pink, flexShrink: 0 }}>
         {isIngreso ? '+' : '-'}{formatCOP(tx.monto || 0)}
       </Text>
-    </Animated.View>
+    </AnimatedTouchable>
   );
 }
 
@@ -116,6 +123,36 @@ export default function GastosScreen() {
       setLoading(false);
     }
   }, [mes]);
+
+  const eliminarTransaccion = useCallback(async (id) => {
+    if (!id) return;
+    if (!supabase) throw new Error('Sin conexión a Supabase');
+    const { error } = await supabase.from('transacciones').delete().eq('id', id);
+    if (error) throw error;
+    setTxs(prev => prev.filter(tx => tx.id !== id));
+  }, []);
+
+  const confirmarEliminacion = useCallback((id) => {
+    if (!id) return;
+    Alert.alert(
+      'Eliminar registro',
+      '¿Estás seguro de que deseas eliminar este movimiento?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await eliminarTransaccion(id);
+            } catch (e) {
+              Alert.alert('Error', e?.message || 'No se pudo eliminar el movimiento.');
+            }
+          },
+        },
+      ],
+    );
+  }, [eliminarTransaccion]);
 
   useFocusEffect(useCallback(() => {
     setLoading(true);
@@ -351,7 +388,12 @@ export default function GastosScreen() {
             </View>
           ) : (
             filtered.map((tx, i) => (
-              <TxRow key={tx.id ?? i} tx={tx} animVal={listAnims[i] || null} />
+              <TxRow
+                key={tx.id ?? i}
+                tx={tx}
+                animVal={listAnims[i] || null}
+                onLongPress={() => confirmarEliminacion(tx.id)}
+              />
             ))
           )}
         </View>
