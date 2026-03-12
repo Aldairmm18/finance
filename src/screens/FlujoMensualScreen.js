@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { loadTransaccionesAnio } from '../utils/storage';
-import { formatCOP } from '../utils/calculations';
+import { loadTransaccionesAnio, loadDataMes } from '../utils/storage';
+import { formatCOP, computeTotals } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 
 const MONTHS = [
@@ -12,20 +12,42 @@ const MONTHS = [
 
 export default function FlujoMensualScreen() {
   const [anioTxs, setAnioTxs] = useState([]);
+  const [budgetByMonth, setBudgetByMonth] = useState(() =>
+    Array.from({ length: 12 }, () => ({ ingresos: 0, gastos: 0 }))
+  );
   const { colors: C } = useTheme();
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
-    loadTransaccionesAnio(selectedYear)
-      .then((txs) => {
+    const monthKeys = Array.from({ length: 12 }, (_, i) =>
+      `${selectedYear}-${String(i + 1).padStart(2, '0')}`
+    );
+    const loadBudgets = Promise.all(
+      monthKeys.map(async (mesKey) => {
+        try {
+          const data = await loadDataMes(mesKey);
+          const totals = computeTotals(data);
+          return {
+            ingresos: totals?.ingresosMonthly || 0,
+            gastos: totals?.totalGastosMonthly || 0,
+          };
+        } catch {
+          return { ingresos: 0, gastos: 0 };
+        }
+      })
+    );
+    Promise.all([loadTransaccionesAnio(selectedYear), loadBudgets])
+      .then(([txs, budgets]) => {
         if (!isActive) return;
         setAnioTxs(txs || []);
+        setBudgetByMonth(budgets || Array.from({ length: 12 }, () => ({ ingresos: 0, gastos: 0 })));
       })
       .catch(() => {
         if (!isActive) return;
         setAnioTxs([]);
+        setBudgetByMonth(Array.from({ length: 12 }, () => ({ ingresos: 0, gastos: 0 })));
       });
     return () => { isActive = false; };
   }, [selectedYear]));
@@ -33,8 +55,12 @@ export default function FlujoMensualScreen() {
   const s = useMemo(() => makeStyles(C), [C]);
 
   const monthlyActuals = useMemo(() => {
-    const ingresos = new Array(12).fill(0);
-    const gastos = new Array(12).fill(0);
+    const ingresos = (budgetByMonth?.length === 12)
+      ? budgetByMonth.map(b => b.ingresos || 0)
+      : new Array(12).fill(0);
+    const gastos = (budgetByMonth?.length === 12)
+      ? budgetByMonth.map(b => b.gastos || 0)
+      : new Array(12).fill(0);
     for (const tx of anioTxs) {
       const fecha = tx?.fecha;
       if (!fecha || typeof fecha !== 'string') continue;
@@ -45,7 +71,7 @@ export default function FlujoMensualScreen() {
       else gastos[monthIdx] += monto;
     }
     return { ingresos, gastos };
-  }, [anioTxs]);
+  }, [anioTxs, budgetByMonth]);
 
   const getMonthValues = (idx) => {
     const ingresos = Math.round(monthlyActuals.ingresos[idx] || 0);

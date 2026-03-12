@@ -14,6 +14,7 @@ import {
   Animated,
   TouchableOpacity,
   Modal,
+  Alert,
   TextInput,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -32,6 +33,7 @@ import {
 import { formatCOP, computeTotals, mergeTransacciones } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { supabase } from '../services/supabase';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -178,6 +180,38 @@ function EmptyState({ icon, text }) {
       <Text style={{ fontSize: 36, marginBottom: 10 }}>{icon}</Text>
       <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>{text}</Text>
     </View>
+  );
+}
+
+// ─── RecentTxRow: fila simple para transacciones recientes ────────────────
+function RecentTxRow({ tx, onPress, onLongPress }) {
+  const { colors: C } = useTheme();
+  const isIngreso = tx.tipo === 'ingreso';
+  const meta = (isIngreso ? INGRESOS_META : GASTOS_META)[tx.categoria] || null;
+  const label = meta?.label || (tx.categoria ? tx.categoria.charAt(0).toUpperCase() + tx.categoria.slice(1) : 'Otro');
+  const dotColor = meta?.color || (isIngreso ? C.teal : C.pink);
+  const fecha = tx.fecha ? tx.fecha.slice(5).replace('-', '/') : '';
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      onLongPress={onLongPress}
+      activeOpacity={0.7}
+      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderColor: C.border }}
+    >
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dotColor, marginRight: 10, flexShrink: 0 }} />
+      <View style={{ flex: 1, marginRight: 8 }}>
+        <Text style={{ fontSize: 13, color: C.text, fontWeight: '500' }} numberOfLines={1}>
+          {tx.descripcion || label}
+          {tx.es_extraordinario ? ' ⚡' : ''}
+        </Text>
+        <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+          {label} · {fecha}
+        </Text>
+      </View>
+      <Text style={{ fontSize: 13, fontWeight: '800', color: isIngreso ? C.teal : C.pink, flexShrink: 0 }}>
+        {isIngreso ? '+' : '-'}{formatCOP(tx.monto || 0)}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -426,9 +460,15 @@ export default function DashboardScreen() {
   const [totals, setTotals] = useState(null);
   const [extraordinarios, setExtraordinarios] = useState([]);
   const [extrasIngreso, setExtrasIngreso] = useState([]);
+  const [transaccionesMes, setTransaccionesMes] = useState([]);
   const [focusKey, setFocusKey] = useState(0);
   const [fabVisible, setFabVisible] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('idle'); // 'idle' | 'synced' | 'error'
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [editMonto, setEditMonto] = useState('');
+  const [editDescripcion, setEditDescripcion] = useState('');
+  const [editCategoria, setEditCategoria] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const { colors: C } = useTheme();
 
   // 9 animated values: 4 stat cards + fondo card + 3 chart cards + extraordinary card
@@ -442,6 +482,7 @@ export default function DashboardScreen() {
       const [d, txs] = await Promise.all([loadDataMes(mesActual), loadTransaccionesMes()]);
       const base = computeTotals(d);
       setTotals(mergeTransacciones(base, txs));
+      setTransaccionesMes(txs || []);
       const extras = (txs || []).filter(tx => tx.es_extraordinario);
       setExtraordinarios(extras.filter(tx => tx.tipo === 'gasto'));
       setExtrasIngreso(extras.filter(tx => tx.tipo === 'ingreso'));
@@ -462,6 +503,7 @@ export default function DashboardScreen() {
   const refreshExtras = useCallback(async () => {
     try {
       const txs = await loadTransaccionesMes();
+      setTransaccionesMes(txs || []);
       const extras = (txs || []).filter(tx => tx.es_extraordinario);
       setExtraordinarios(extras.filter(tx => tx.tipo === 'gasto'));
       setExtrasIngreso(extras.filter(tx => tx.tipo === 'ingreso'));
@@ -470,9 +512,84 @@ export default function DashboardScreen() {
     }
   }, []);
 
-  useRealtimeSync(refreshExtras);
+  const abrirEdicion = useCallback((tx) => {
+    if (!tx) return;
+    setEditingTransaction(tx);
+    setEditMonto(String(tx.monto ?? ''));
+    setEditDescripcion(tx.descripcion ?? '');
+    setEditCategoria(tx.categoria ?? '');
+  }, []);
+
+  const cerrarEdicion = useCallback(() => {
+    setEditingTransaction(null);
+    setEditMonto('');
+    setEditDescripcion('');
+    setEditCategoria('');
+    setEditSubmitting(false);
+  }, []);
+
+  const actualizarTransaccion = useCallback(async () => {
+    if (!editingTransaction) return;
+    if (editSubmitting) return;
+    Keyboard.dismiss();
+    const montoNum = parseFloat(String(editMonto).replace(/[^0-9.]/g, ''));
+    if (!montoNum || montoNum <= 0) {
+      Alert.alert('Monto inválido', 'Ingresa un monto válido.');
+      return;
+    }
+    setEditSubmitting(true);
+    try {
+      if (!supabase) throw new Error('Sin conexión a Supabase');
+      const { error } = await supabase
+        .from('transacciones')
+        .update({
+          monto: montoNum,
+          descripcion: editDescripcion.trim(),
+          categoria: editCategoria.trim(),
+        })
+        .eq('id', editingTransaction.id);
+      if (error) throw error;
+      await reload();
+      cerrarEdicion();
+    } catch (e) {
+      setEditSubmitting(false);
+      Alert.alert('Error', e?.message || 'No se pudo actualizar el movimiento.');
+    }
+  }, [editingTransaction, editMonto, editDescripcion, editCategoria, editSubmitting, reload, cerrarEdicion]);
+
+  const eliminarTransaccion = useCallback(async (id) => {
+    if (!id) return;
+    try {
+      if (!supabase) throw new Error('Sin conexión a Supabase');
+      const { error } = await supabase.from('transacciones').delete().eq('id', id);
+      if (error) throw error;
+      await reload();
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'No se pudo eliminar el movimiento.');
+    }
+  }, [reload]);
+
+  const confirmarEliminacion = useCallback((id) => {
+    if (!id) return;
+    Alert.alert(
+      'Eliminar registro',
+      '¿Estás seguro de que deseas eliminar este movimiento?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => eliminarTransaccion(id) },
+      ],
+    );
+  }, [eliminarTransaccion]);
+
+  useRealtimeSync(reload);
 
   const s = useMemo(() => makeStyles(C), [C]);
+
+  const recentTxs = useMemo(() => {
+    return [...(transaccionesMes || [])]
+      .sort((a, b) => (b?.fecha || '').localeCompare(a?.fecha || ''))
+      .slice(0, 8);
+  }, [transaccionesMes]);
 
   const animIngresos = useCountUp(totals?.ingresosMonthly ?? 0, focusKey);
   const animGastos = useCountUp(totals?.totalGastosMonthly ?? 0, focusKey);
@@ -668,6 +785,29 @@ export default function DashboardScreen() {
           </Animated.View>
         )}
 
+        {/* ── Transacciones recientes ── */}
+        {recentTxs.length > 0 && (
+          <View style={{ backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, overflow: 'hidden', marginBottom: 12 }}>
+            <View style={{ height: 3, backgroundColor: C.teal }} />
+            <View style={{ padding: 16, paddingBottom: 8 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 }}>
+                Transacciones recientes
+              </Text>
+              <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
+                {transaccionesMes.length} registradas este mes
+              </Text>
+              {recentTxs.map((tx, i) => (
+                <RecentTxRow
+                  key={tx.id ?? i}
+                  tx={tx}
+                  onPress={() => abrirEdicion(tx)}
+                  onLongPress={() => confirmarEliminacion(tx.id)}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* ── Graficas ── */}
         <ChartCard title="Distribucion de Gastos" accentColor={C.pink} animVal={cardAnims[5]}>
           {gastosChartData.length > 0 ? (
@@ -688,6 +828,153 @@ export default function DashboardScreen() {
         </ChartCard>
 
       </ScrollView>
+
+      {/* ── Modal editar transacción ── */}
+      <Modal
+        visible={!!editingTransaction}
+        transparent
+        animationType="slide"
+        onRequestClose={cerrarEdicion}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}
+            activeOpacity={1}
+            onPress={cerrarEdicion}
+          />
+          <View style={{
+            backgroundColor: C.card,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            padding: 24,
+            paddingBottom: 36,
+            borderTopWidth: 1,
+            borderColor: C.border,
+          }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>
+                  Editar movimiento
+                </Text>
+                <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
+                  Actualiza monto, descripción y categoría
+                </Text>
+              </View>
+              <TouchableOpacity onPress={cerrarEdicion} style={{ paddingLeft: 12, paddingBottom: 4 }}>
+                <Text style={{ fontSize: 22, color: C.textMuted, lineHeight: 24 }}>x</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: C.border, marginVertical: 16 }} />
+
+            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
+              Descripción
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: C.bg,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: C.border,
+                color: C.text,
+                fontSize: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                marginBottom: 14,
+              }}
+              placeholder="Descripción"
+              placeholderTextColor={C.textMuted}
+              value={editDescripcion}
+              onChangeText={setEditDescripcion}
+              blurOnSubmit={true}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
+              editable={!editSubmitting}
+            />
+
+            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
+              Categoría
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: C.bg,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: C.border,
+                color: C.text,
+                fontSize: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                marginBottom: 14,
+              }}
+              placeholder="Categoría"
+              placeholderTextColor={C.textMuted}
+              value={editCategoria}
+              onChangeText={setEditCategoria}
+              blurOnSubmit={true}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
+              editable={!editSubmitting}
+            />
+
+            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
+              Monto
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: C.bg,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: C.border,
+                color: C.text,
+                fontSize: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                marginBottom: 4,
+              }}
+              placeholder="0"
+              placeholderTextColor={C.textMuted}
+              value={editMonto}
+              onChangeText={setEditMonto}
+              keyboardType="numeric"
+              blurOnSubmit={true}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
+              editable={!editSubmitting}
+            />
+            {editMonto ? (
+              <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
+                = {formatCOP(parseFloat(String(editMonto).replace(/[^0-9.]/g, '')) || 0)}
+              </Text>
+            ) : (
+              <View style={{ marginBottom: 14 }} />
+            )}
+
+            <TouchableOpacity
+              onPress={actualizarTransaccion}
+              disabled={editSubmitting}
+              style={{
+                backgroundColor: C.teal,
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: 'center',
+                opacity: editSubmitting ? 0.7 : 1,
+              }}
+            >
+              {editSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.3 }}>
+                  Guardar cambios
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* ── FAB ── */}
       <TouchableOpacity
