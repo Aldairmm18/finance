@@ -21,7 +21,7 @@ from telegram.ext import (
 )
 
 import database as db
-from gemini_parser import parse_message_gemini
+from gemini_parser import parse_message_gemini, GeminiParseError
 from categories import CATEGORY_LABELS, SUBCATEGORY_LABELS
 
 load_dotenv()
@@ -374,6 +374,13 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         parsed = parse_message_gemini(text)
+    except GeminiParseError as exc:
+        logger.error(
+            "Error parseando Gemini: %s. Raw response: %s",
+            exc,
+            exc.response_text,
+        )
+        parsed = None
     except Exception as exc:
         logger.error('parse_message_gemini error: %s', exc)
         parsed = None

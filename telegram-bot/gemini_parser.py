@@ -27,6 +27,12 @@ SYSTEM_PROMPT = (
 )
 
 
+class GeminiParseError(Exception):
+    def __init__(self, message: str, response_text: str):
+        super().__init__(message)
+        self.response_text = response_text
+
+
 def _client() -> genai.Client:
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
@@ -75,22 +81,19 @@ def _validate_payload(payload: dict) -> dict | None:
     descripcion = _normalize_text(payload.get("descripcion"))
     es_extraordinario = _coerce_bool(payload.get("es_extraordinario"))
 
-    if tipo:
-        tipo = tipo.lower()
-    if categoria:
-        categoria = categoria.lower()
-    if subcategoria:
-        subcategoria = subcategoria.lower()
+    tipo = (tipo or "gasto").lower()
+    categoria = (categoria or "otro").lower()
+    subcategoria = (subcategoria or "otro").lower()
+    descripcion = descripcion or "Sin descripción"
+    es_extraordinario = es_extraordinario if es_extraordinario is not None else False
 
     if tipo not in {"gasto", "ingreso"}:
-        return None
-    if not categoria or categoria not in ALLOWED_CATEGORIES:
-        return None
-    if not subcategoria or subcategoria not in ALLOWED_SUBCATEGORIES:
-        return None
+        tipo = "gasto"
+    if categoria not in ALLOWED_CATEGORIES:
+        categoria = "otro"
+    if subcategoria not in ALLOWED_SUBCATEGORIES:
+        subcategoria = "otro"
     if monto is None or monto <= 0:
-        return None
-    if es_extraordinario is None:
         return None
 
     return {
@@ -120,14 +123,15 @@ def parse_message_gemini(text: str) -> dict | None:
     )
     raw = getattr(response, "text", "") or ""
     if not raw:
-        return None
+        raise GeminiParseError("Respuesta vacía", raw)
 
     try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
+        cleaned = raw.replace("```json", "").replace("```", "").strip()
+        payload = json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        raise GeminiParseError(f"JSON inválido: {e}", raw) from e
 
     if not isinstance(payload, dict):
-        return None
+        raise GeminiParseError("Respuesta no es un objeto JSON", raw)
 
     return _validate_payload(payload)
