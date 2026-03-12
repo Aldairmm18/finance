@@ -18,6 +18,18 @@ export const CATEGORY_COLORS = {
   'Otros': '#94A3B8',
 };
 
+export const CATEGORY_ICONS = {
+  'Alimentación': 'fast-food',
+  'Transporte': 'bus',
+  'Servicios': 'home',
+  'Ocio': 'game-controller',
+  'Salud': 'medkit',
+  'Educación': 'school',
+  'Otros': 'ellipsis-horizontal-circle',
+};
+
+export const DEFAULT_CATEGORY_ICON = 'ellipsis-horizontal-circle';
+
 const LEGACY_TO_MASTER = {
   'alimentación': 'Alimentación',
   'alimentacion': 'Alimentación',
@@ -54,4 +66,9 @@ export function normalizeCategoria(value) {
 export function getCategoryColor(value, fallback = '#94A3B8') {
   const master = normalizeCategoria(value);
   return CATEGORY_COLORS[master] || fallback;
+}
+
+export function getCategoryIcon(value, fallback = DEFAULT_CATEGORY_ICON) {
+  const master = normalizeCategoria(value);
+  return CATEGORY_ICONS[master] || fallback;
 }

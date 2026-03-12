@@ -21,6 +21,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
 import {
@@ -31,7 +32,7 @@ import {
   aplicarTraspasoSobrante,
 } from '../utils/storage';
 import { formatCOP, computeTotals, mergeTransacciones } from '../utils/calculations';
-import { MASTER_CATEGORIES, CATEGORY_COLORS, normalizeCategoria } from '../utils/categoryTheme';
+import { MASTER_CATEGORIES, CATEGORY_COLORS, normalizeCategoria, getCategoryIcon } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
@@ -193,6 +194,7 @@ function RecentTxRow({ tx, onPress, onLongPress }) {
   const master = normalizeCategoria(tx.categoria);
   const label = master || (tx.categoria ? tx.categoria.charAt(0).toUpperCase() + tx.categoria.slice(1) : 'Otros');
   const dotColor = CATEGORY_COLORS[master] || (isIngreso ? C.teal : C.pink);
+  const iconName = getCategoryIcon(master);
   const fecha = tx.fecha ? tx.fecha.slice(5).replace('-', '/') : '';
   return (
     <TouchableOpacity
@@ -201,7 +203,7 @@ function RecentTxRow({ tx, onPress, onLongPress }) {
       activeOpacity={0.7}
       style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderColor: C.border }}
     >
-      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dotColor, marginRight: 10, flexShrink: 0 }} />
+      <Ionicons name={iconName} size={16} color={dotColor} style={{ marginRight: 10 }} />
       <View style={{ flex: 1, marginRight: 8 }}>
         <Text style={{ fontSize: 13, color: C.text, fontWeight: '500' }} numberOfLines={1}>
           {tx.descripcion || label}

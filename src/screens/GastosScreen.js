@@ -15,11 +15,12 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
 import { loadTransaccionesMes, getCurrentMes } from '../utils/storage';
 import { formatCOP } from '../utils/calculations';
-import { normalizeCategoria, CATEGORY_COLORS } from '../utils/categoryTheme';
+import { normalizeCategoria, CATEGORY_COLORS, getCategoryIcon } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
@@ -67,6 +68,8 @@ function TxRow({ tx, animVal, onLongPress, onPress }) {
   const { colors: C } = useTheme();
   const isIngreso = tx.tipo === 'ingreso';
   const fecha = tx.fecha ? tx.fecha.slice(5).replace('-', '/') : '';
+  const iconName = getCategoryIcon(tx.categoria);
+  const iconColor = catColor(tx.categoria);
   const animStyle = animVal ? {
     opacity: animVal,
     transform: [{ translateY: animVal.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
@@ -81,8 +84,8 @@ function TxRow({ tx, animVal, onLongPress, onPress }) {
         animStyle,
       ]}
     >
-      {/* Color dot */}
-      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: catColor(tx.categoria), marginRight: 10, flexShrink: 0 }} />
+      {/* Icon */}
+      <Ionicons name={iconName} size={16} color={iconColor} style={{ marginRight: 10 }} />
       <View style={{ flex: 1, marginRight: 8 }}>
         <Text style={{ fontSize: 13, color: C.text, fontWeight: '500' }} numberOfLines={1}>
           {tx.descripcion || catLabel(tx.categoria)}
