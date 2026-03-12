@@ -19,7 +19,7 @@ from telegram.ext import (
 )
 
 import database as db
-from finance_parser import parse_message
+from gemini_parser import parse_message_gemini
 from categories import CATEGORY_LABELS, SUBCATEGORY_LABELS
 
 load_dotenv()
@@ -353,22 +353,13 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     logger.info('Mensaje de chat_id=%s: %r', chat_id, text[:60])
 
     try:
-        parsed = parse_message(text)
+        parsed = parse_message_gemini(text)
     except Exception as exc:
-        logger.error('parse_message error: %s', exc)
+        logger.error('parse_message_gemini error: %s', exc)
         parsed = None
 
     if parsed is None:
-        await update.message.reply_text(
-            "No pude entender el monto 🤔\n\n"
-            "Escribe algo como:\n"
-            "• `almuerzo 15000`\n"
-            "• `taxi 8.500`\n"
-            "• `salario 3.500.000`\n"
-            "• `extra multa 200000` ⚡\n\n"
-            "El número debe ser mayor a 100.",
-            parse_mode='Markdown',
-        )
+        await update.message.reply_text("¿Cuánto gastaste y en qué fue?")
         return
 
     try:
@@ -382,19 +373,14 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             es_extraordinario = parsed['es_extraordinario'],
         )
 
-        e     = emoji_tipo(parsed['tipo'])
-        cat   = cat_label(parsed['categoria'])
-        sub   = sub_label(parsed['subcategoria'])
-        extra = '\n⚡ _Marcado como gasto extraordinario_' if parsed['es_extraordinario'] else ''
+        cat = cat_label(parsed['categoria'])
+        sub = sub_label(parsed['subcategoria'])
+        tipo_txt = 'gasto' if parsed['tipo'] == 'gasto' else 'ingreso'
+        extra_txt = " Lo marqué como extraordinario." if parsed['es_extraordinario'] else ""
 
         await update.message.reply_text(
-            f"✅ *Registrado*\n\n"
-            f"{e} *{fmt(parsed['monto'])}*\n"
-            f"📂 {cat} › {sub}\n"
-            f"📝 _{parsed['descripcion']}_"
-            f"{extra}\n\n"
-            f"_/borrar para deshacer · /hoy para el resumen_",
-            parse_mode='Markdown',
+            f"¡Anotado! Guardé un {tipo_txt} de {fmt(parsed['monto'])} en {cat} ({sub})."
+            f"{extra_txt}"
         )
         logger.info('Guardado: %s %s → %s/%s', parsed['tipo'],
                     fmt(parsed['monto']), parsed['categoria'], parsed['subcategoria'])
