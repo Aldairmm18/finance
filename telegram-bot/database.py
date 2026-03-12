@@ -31,6 +31,16 @@ def _today_co() -> date:
     return _now_co().date()
 
 
+def _coerce_date(value: date | datetime | None) -> date:
+    if value is None:
+        return _today_co()
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=COLOMBIA_TZ)
+        return value.astimezone(COLOMBIA_TZ).date()
+    return value
+
+
 # ─── Multi-usuario ────────────────────────────────────────────────────────────
 
 def vincular_telegram(chat_id: int, email: str, password: str) -> str:
@@ -86,7 +96,7 @@ def get_user_id(chat_id: int) -> str | None:
         supabase.table('telegram_users')
         .select('user_id')
         .eq('chat_id', chat_id)
-        .maybeSingle()
+        .maybe_single()
         .execute()
     )
     if result.data:
@@ -106,6 +116,7 @@ def registrar_transaccion(
     fecha: date | None = None,
     es_extraordinario: bool = False,
 ) -> dict:
+    fecha_co = _coerce_date(fecha)
     row = {
         'user_id':           user_id,
         'tipo':              tipo,
@@ -113,7 +124,7 @@ def registrar_transaccion(
         'categoria':         categoria,
         'subcategoria':      subcategoria,
         'descripcion':       descripcion,
-        'fecha':             str(fecha or _today_co()),
+        'fecha':             str(fecha_co),
         'fuente':            'telegram_bot',
         'es_extraordinario': es_extraordinario,
     }
@@ -142,13 +153,15 @@ def borrar_ultima_transaccion(user_id: str) -> dict | None:
 
 # ─── Lectura (incluye todas las fuentes: app + bot) ───────────────────────────
 
-def _fetch_transacciones(user_id: str, desde: date, hasta: date) -> list[dict]:
+def _fetch_transacciones(user_id: str, desde: date | datetime, hasta: date | datetime) -> list[dict]:
+    desde_co = _coerce_date(desde)
+    hasta_co = _coerce_date(hasta)
     result = (
         supabase.table('transacciones')
         .select('*')
         .eq('user_id', user_id)
-        .gte('fecha', str(desde))
-        .lte('fecha', str(hasta))
+        .gte('fecha', str(desde_co))
+        .lte('fecha', str(hasta_co))
         .order('fecha', desc=True)
         .order('created_at', desc=True)
         .execute()
@@ -188,9 +201,10 @@ def _calcular_resumen(filas: list[dict], periodo: str) -> dict:
     }
 
 
-def obtener_gastos_por_categoria(user_id: str, mes: date | None = None) -> list[dict]:
+def obtener_gastos_por_categoria(user_id: str, mes: date | datetime | None = None) -> list[dict]:
     hoy = _today_co()
-    inicio = (mes or hoy).replace(day=1)
+    mes_co = _coerce_date(mes) if mes is not None else hoy
+    inicio = mes_co.replace(day=1)
     fin    = hoy if mes is None or mes.month == hoy.month else \
              (inicio.replace(month=inicio.month % 12 + 1, day=1) - timedelta(days=1))
     filas  = _fetch_transacciones(user_id, inicio, fin)
