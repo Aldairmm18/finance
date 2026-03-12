@@ -87,6 +87,16 @@ const EXTRA_CATS_INGRESO = [
   { key: 'otros', label: 'Otros' },
 ];
 
+const EDIT_CATEGORIAS = [
+  { key: 'comida', label: 'Comida' },
+  { key: 'transporte', label: 'Transporte' },
+  { key: 'hogar', label: 'Servicios' },
+  { key: 'entretenimiento', label: 'Ocio' },
+  { key: 'salud', label: 'Salud' },
+  { key: 'educacion', label: 'Educación' },
+  { key: 'otros', label: 'Otros' },
+];
+
 // ─── Hook: count-up animado (easeOutCubic) ────────────────────────────────────
 function useCountUp(target, triggerKey, duration = 850) {
   const [val, setVal] = useState(0);
@@ -895,30 +905,37 @@ export default function DashboardScreen() {
               editable={!editSubmitting}
             />
 
-            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 8 }}>
               Categoría
             </Text>
-            <TextInput
-              style={{
-                backgroundColor: C.bg,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: C.border,
-                color: C.text,
-                fontSize: 14,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                marginBottom: 14,
-              }}
-              placeholder="Categoría"
-              placeholderTextColor={C.textMuted}
-              value={editCategoria}
-              onChangeText={setEditCategoria}
-              blurOnSubmit={true}
-              returnKeyType="done"
-              onSubmitEditing={Keyboard.dismiss}
-              editable={!editSubmitting}
-            />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {EDIT_CATEGORIAS.map(cat => {
+                const selected = editCategoria === cat.key;
+                return (
+                  <TouchableOpacity
+                    key={cat.key}
+                    onPress={() => setEditCategoria(cat.key)}
+                    disabled={editSubmitting}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 20,
+                      backgroundColor: selected ? C.teal : C.bg,
+                      borderWidth: 1,
+                      borderColor: selected ? C.teal : C.border,
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: selected ? '#fff' : C.textMuted,
+                    }}>
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
               Monto
