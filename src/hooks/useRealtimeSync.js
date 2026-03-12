@@ -20,7 +20,7 @@ export function useRealtimeSync(onUpdate) {
     if (!supabase) return;  // sin cliente, no suscribir
 
     const channel = supabase
-      .channel('transacciones_realtime')
+      .channel('custom-all-channel')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transacciones' },
