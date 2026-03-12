@@ -9,6 +9,10 @@ import {
   RefreshControl,
   Modal,
   Alert,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadDataMes, getCurrentMes, loadTransaccionesMes, loadTransaccionesAnio } from '../utils/storage';
@@ -116,13 +120,14 @@ function CategoryProgressCard({ catKey, actual, planned, animVal }) {
 
 // ─── TxRow: fila de transacción ───────────────────────────────────────────────
 
-function TxRow({ tx, onLongPress }) {
+function TxRow({ tx, onLongPress, onPress }) {
   const { colors: C } = useTheme();
   const isIngreso = tx.tipo === 'ingreso';
   const cat = TIPO_LABELS[tx.categoria] || (tx.categoria || 'Otro');
   const fecha = tx.fecha ? tx.fecha.slice(5) : '';  // MM-DD
   return (
     <TouchableOpacity
+      onPress={onPress}
       onLongPress={onLongPress}
       activeOpacity={0.7}
       style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderColor: C.border }}
@@ -160,6 +165,10 @@ export default function ResumenMesScreen() {
   const [txs, setTxs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('idle');
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [editMonto, setEditMonto] = useState('');
+  const [editDescripcion, setEditDescripcion] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   // ── Annual state ──
   const [anioTxs, setAnioTxs] = useState([]);
@@ -239,6 +248,45 @@ export default function ResumenMesScreen() {
       ],
     );
   }, [eliminarTransaccion]);
+
+  const abrirEdicion = useCallback((tx) => {
+    if (!tx) return;
+    setEditingTransaction(tx);
+    setEditMonto(String(tx.monto ?? ''));
+    setEditDescripcion(tx.descripcion ?? '');
+  }, []);
+
+  const cerrarEdicion = useCallback(() => {
+    setEditingTransaction(null);
+    setEditMonto('');
+    setEditDescripcion('');
+    setEditSubmitting(false);
+  }, []);
+
+  const actualizarTransaccion = useCallback(async () => {
+    if (!editingTransaction) return;
+    if (editSubmitting) return;
+    Keyboard.dismiss();
+    const montoNum = parseFloat(String(editMonto).replace(/[^0-9.]/g, ''));
+    if (!montoNum || montoNum <= 0) {
+      Alert.alert('Monto inválido', 'Ingresa un monto válido.');
+      return;
+    }
+    setEditSubmitting(true);
+    try {
+      if (!supabase) throw new Error('Sin conexión a Supabase');
+      const { error } = await supabase
+        .from('transacciones')
+        .update({ monto: montoNum, descripcion: editDescripcion.trim() })
+        .eq('id', editingTransaction.id);
+      if (error) throw error;
+      await loadAll();
+      cerrarEdicion();
+    } catch (e) {
+      setEditSubmitting(false);
+      Alert.alert('Error', e?.message || 'No se pudo actualizar el movimiento.');
+    }
+  }, [editingTransaction, editMonto, editDescripcion, editSubmitting, loadAll, cerrarEdicion]);
 
   // ── Historic annual aggregation (by month) ──
   const loadHistorico = useCallback(async (year) => {
@@ -658,7 +706,12 @@ export default function ResumenMesScreen() {
                     {txs.length} registradas este mes
                   </Text>
                   {recentTxs.map((tx, i) => (
-                    <TxRow key={tx.id ?? i} tx={tx} onLongPress={() => confirmarEliminacion(tx.id)} />
+                    <TxRow
+                      key={tx.id ?? i}
+                      tx={tx}
+                      onPress={() => abrirEdicion(tx)}
+                      onLongPress={() => confirmarEliminacion(tx.id)}
+                    />
                   ))}
                 </View>
               </Animated.View>
@@ -754,6 +807,128 @@ export default function ResumenMesScreen() {
             )}
           </View>
         </View>
+      </Modal>
+
+      {/* ── Modal editar transacción ── */}
+      <Modal
+        visible={!!editingTransaction}
+        transparent
+        animationType="slide"
+        onRequestClose={cerrarEdicion}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}
+            activeOpacity={1}
+            onPress={cerrarEdicion}
+          />
+          <View style={{
+            backgroundColor: C.card,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            padding: 24,
+            paddingBottom: 36,
+            borderTopWidth: 1,
+            borderColor: C.border,
+          }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>
+                  Editar movimiento
+                </Text>
+                <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
+                  Actualiza monto y descripción
+                </Text>
+              </View>
+              <TouchableOpacity onPress={cerrarEdicion} style={{ paddingLeft: 12, paddingBottom: 4 }}>
+                <Text style={{ fontSize: 22, color: C.textMuted, lineHeight: 24 }}>x</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: C.border, marginVertical: 16 }} />
+
+            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
+              Descripción
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: C.bg,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: C.border,
+                color: C.text,
+                fontSize: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                marginBottom: 14,
+              }}
+              placeholder="Descripción"
+              placeholderTextColor={C.textMuted}
+              value={editDescripcion}
+              onChangeText={setEditDescripcion}
+              blurOnSubmit={true}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
+              editable={!editSubmitting}
+            />
+
+            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
+              Monto
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: C.bg,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: C.border,
+                color: C.text,
+                fontSize: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                marginBottom: 4,
+              }}
+              placeholder="0"
+              placeholderTextColor={C.textMuted}
+              value={editMonto}
+              onChangeText={setEditMonto}
+              keyboardType="numeric"
+              blurOnSubmit={true}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
+              editable={!editSubmitting}
+            />
+            {editMonto ? (
+              <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
+                = {formatCOP(parseFloat(String(editMonto).replace(/[^0-9.]/g, '')) || 0)}
+              </Text>
+            ) : (
+              <View style={{ marginBottom: 14 }} />
+            )}
+
+            <TouchableOpacity
+              onPress={actualizarTransaccion}
+              disabled={editSubmitting}
+              style={{
+                backgroundColor: C.teal,
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: 'center',
+                opacity: editSubmitting ? 0.7 : 1,
+              }}
+            >
+              {editSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.3 }}>
+                  Guardar cambios
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScrollView>
   );
