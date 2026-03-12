@@ -14,10 +14,11 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadDataMes, getCurrentMes, loadTransaccionesMes, loadTransaccionesAnio } from '../utils/storage';
 import { computeTotals, mergeTransacciones, formatCOP, toMonthly } from '../utils/calculations';
-import { getCategoryColor } from '../utils/categoryTheme';
+import { getCategoryColor, getCategoryIcon } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
@@ -76,6 +77,7 @@ function CategoryProgressCard({ catKey, actual, planned, animVal }) {
   const { colors: C } = useTheme();
   const meta = CAT_META[catKey] || { label: catKey, icon: '•', color: C.purple };
   const masterColor = getCategoryColor(catKey, meta.color || C.purple);
+  const iconName = getCategoryIcon(catKey);
   const ratio = planned > 0 ? actual / planned : actual > 0 ? 1.01 : 0;
   const pct = planned > 0 ? Math.round(ratio * 100) : null;
   const over = ratio > 1;
@@ -92,7 +94,7 @@ function CategoryProgressCard({ catKey, actual, planned, animVal }) {
       animStyle,
     ]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-        <Text style={{ fontSize: 18, marginRight: 8 }}>{meta.icon}</Text>
+        <Ionicons name={iconName} size={16} color={masterColor} style={{ marginRight: 8 }} />
         <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: C.text }}>{meta.label}</Text>
         {pct !== null && (
           <View style={{
@@ -513,10 +515,11 @@ export default function ResumenMesScreen() {
                   const meta = CAT_META[catKey] || { label: catKey, icon: '•', color: C.purple };
                   const masterColor = getCategoryColor(catKey, meta.color || C.purple);
                   const pct = anioStats.totalGastos > 0 ? Math.round((amount / anioStats.totalGastos) * 100) : 0;
+                  const iconName = getCategoryIcon(catKey);
                   return (
                     <View key={catKey} style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 8 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                        <Text style={{ fontSize: 18, marginRight: 8 }}>{meta.icon}</Text>
+                        <Ionicons name={iconName} size={16} color={masterColor} style={{ marginRight: 8 }} />
                         <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: C.text }}>{meta.label}</Text>
                         <View style={{ backgroundColor: masterColor + '22', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
                           <Text style={{ fontSize: 11, fontWeight: '800', color: masterColor }}>{pct}%</Text>
