@@ -26,12 +26,12 @@ import { supabase } from '../services/supabase';
 // ─── Metadata de categorías ───────────────────────────────────────────────────
 
 const CAT_META = {
-  hogar: { label: 'Hogar', icon: '🏠', color: '#818cf8' },
-  comida: { label: 'Comida', icon: '🍽️', color: '#2dd4bf' },
-  transporte: { label: 'Transporte', icon: '🚗', color: '#f59e0b' },
-  creditos: { label: 'Créditos', icon: '💳', color: '#f472b6' },
-  entretenimiento: { label: 'Entretenimiento', icon: '🎉', color: '#60a5fa' },
-  familia: { label: 'Familia', icon: '👨‍👩‍👧', color: '#34d399' },
+  hogar: { label: 'Hogar', color: '#818cf8' },
+  comida: { label: 'Comida', color: '#2dd4bf' },
+  transporte: { label: 'Transporte', color: '#f59e0b' },
+  creditos: { label: 'Créditos', color: '#f472b6' },
+  entretenimiento: { label: 'Entretenimiento', color: '#60a5fa' },
+  familia: { label: 'Familia', color: '#34d399' },
 };
 
 const TIPO_LABELS = {
@@ -139,7 +139,12 @@ function TxRow({ tx, onLongPress, onPress }) {
       <View style={{ flex: 1, marginRight: 8 }}>
         <Text style={{ fontSize: 13, color: C.text, fontWeight: '500' }} numberOfLines={1}>
           {tx.descripcion || cat}
-          {tx.es_extraordinario ? ' ⚡' : ''}
+          {tx.es_extraordinario ? (
+            <>
+              {' '}
+              <Ionicons name="flash" size={12} color={C.purple} />
+            </>
+          ) : null}
         </Text>
         <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{cat} · {fecha}</Text>
       </View>
@@ -468,7 +473,7 @@ export default function ResumenMesScreen() {
             </View>
           ) : !anioStats ? (
             <View style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 28, alignItems: 'center' }}>
-              <Text style={{ fontSize: 28, marginBottom: 8 }}>📊</Text>
+              <Ionicons name="stats-chart" size={28} color={C.textMuted} style={{ marginBottom: 8 }} />
               <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>
                 Sin transacciones registradas en {anioSelected}
               </Text>
@@ -676,7 +681,7 @@ export default function ResumenMesScreen() {
                 alignItems: 'center',
                 marginBottom: 20,
               }}>
-                <Text style={{ fontSize: 28, marginBottom: 8 }}>📊</Text>
+                <Ionicons name="stats-chart" size={28} color={C.textMuted} style={{ marginBottom: 8 }} />
                 <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>
                   {'Aún no hay transacciones ni\npresupuesto registrados este mes'}
                 </Text>
@@ -805,7 +810,7 @@ export default function ResumenMesScreen() {
               </View>
             ) : (
               <View style={{ backgroundColor: C.bg, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 22, alignItems: 'center' }}>
-                <Text style={{ fontSize: 26, marginBottom: 8 }}>📭</Text>
+                <Ionicons name="mail-open" size={26} color={C.textMuted} style={{ marginBottom: 8 }} />
                 <Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center' }}>
                   Sin registros para {historicoYear}
                 </Text>

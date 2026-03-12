@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, StyleSheet, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadData, saveData } from '../utils/storage';
 import { formatCOP, parseAmount } from '../utils/calculations';
@@ -9,7 +10,7 @@ const MILESTONES = [
   { pct: 25,  label: '25%'  },
   { pct: 50,  label: '50%'  },
   { pct: 75,  label: '75%'  },
-  { pct: 100, label: '🎯'   },
+  { pct: 100, iconName: 'checkmark-circle' },
 ];
 
 // ─── InputField ───────────────────────────────────────────────────────────────
@@ -88,9 +89,13 @@ function ProgressBar({ progreso, color }) {
           const reached = progreso >= m.pct;
           return (
             <View key={m.pct} style={[s.milestoneItem, { left: `${m.pct}%` }]}>
-              <Text style={{ fontSize: 10, color: reached ? color : C.textMuted, fontWeight: reached ? '800' : '400', textAlign: 'center' }}>
-                {m.label}
-              </Text>
+              {m.iconName ? (
+                <Ionicons name={m.iconName} size={12} color={reached ? color : C.textMuted} />
+              ) : (
+                <Text style={{ fontSize: 10, color: reached ? color : C.textMuted, fontWeight: reached ? '800' : '400', textAlign: 'center' }}>
+                  {m.label}
+                </Text>
+              )}
             </View>
           );
         })}
@@ -231,7 +236,7 @@ export default function TranquilidadScreen() {
 
             {progreso >= 100 ? (
               <View style={[styles.achievedBanner, { backgroundColor: C.teal + '20', borderColor: C.teal + '40' }]}>
-                <Text style={{ fontSize: 28, marginBottom: 6 }}>🎉</Text>
+                <Ionicons name="sparkles" size={28} color={C.teal} style={{ marginBottom: 6 }} />
                 <Text style={{ fontSize: 16, fontWeight: '800', color: C.teal, textAlign: 'center' }}>
                   ¡Libertad financiera alcanzada!
                 </Text>

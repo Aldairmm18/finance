@@ -4,6 +4,7 @@ import {
   StyleSheet, Modal, LayoutAnimation, UIManager, Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { loadDataMes, saveDataMes, getCurrentMes, computeRollover } from '../utils/storage';
 import { PERIODICIDADES, formatCOP, toMonthly, toAnnual, parseAmount } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
@@ -32,7 +33,7 @@ const INCOME_ITEMS = [
 
 const EXPENSE_CATEGORIES = [
   {
-    key: 'hogar', label: 'Hogar', icon: '🏠',
+    key: 'hogar', label: 'Hogar', iconName: 'home',
     items: [
       { key: 'arriendo', label: 'Arriendo' },
       { key: 'administracion', label: 'Administración' },
@@ -46,7 +47,7 @@ const EXPENSE_CATEGORIES = [
     ],
   },
   {
-    key: 'comida', label: 'Comida', icon: '🍽️',
+    key: 'comida', label: 'Comida', iconName: 'fast-food',
     items: [
       { key: 'mercado', label: 'Mercado' },
       { key: 'comidasFuera', label: 'Comidas por fuera' },
@@ -54,7 +55,7 @@ const EXPENSE_CATEGORIES = [
     ],
   },
   {
-    key: 'transporte', label: 'Transporte', icon: '🚗',
+    key: 'transporte', label: 'Transporte', iconName: 'bus',
     items: [
       { key: 'gasolina', label: 'Gasolina' },
       { key: 'taxiUber', label: 'Taxi / Uber' },
@@ -66,7 +67,7 @@ const EXPENSE_CATEGORIES = [
     ],
   },
   {
-    key: 'creditos', label: 'Créditos / Deudas', icon: '💳',
+    key: 'creditos', label: 'Créditos / Deudas', iconName: 'card',
     items: [
       { key: 'creditoHipotecario', label: 'Crédito Hipotecario' },
       { key: 'creditoAuto', label: 'Crédito Auto' },
@@ -75,7 +76,7 @@ const EXPENSE_CATEGORIES = [
     ],
   },
   {
-    key: 'entretenimiento', label: 'Entretenimiento', icon: '🎉',
+    key: 'entretenimiento', label: 'Entretenimiento', iconName: 'game-controller',
     items: [
       { key: 'viajes', label: 'Viajes' },
       { key: 'restaurantes', label: 'Restaurantes' },
@@ -87,7 +88,7 @@ const EXPENSE_CATEGORIES = [
     ],
   },
   {
-    key: 'familia', label: 'Familia', icon: '👨‍👩‍👧',
+    key: 'familia', label: 'Familia', iconName: 'people',
     items: [
       { key: 'colegios', label: 'Colegios' },
       { key: 'seguroMedico', label: 'Seguro Médico' },
@@ -368,7 +369,7 @@ const ExpenseRow = React.memo(({ label, item, onChangeMonto, onOpenPeriod, onTog
 
 // ─── SectionHeader ────────────────────────────────────────────────────────────
 
-function SectionHeader({ icon, label, total, expanded, onPress }) {
+function SectionHeader({ iconName, iconColor, label, total, expanded, onPress }) {
   const { colors: C } = useTheme();
   return (
     <TouchableOpacity
@@ -388,7 +389,7 @@ function SectionHeader({ icon, label, total, expanded, onPress }) {
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Text style={{ fontSize: 20, marginRight: 12 }}>{icon}</Text>
+      <Ionicons name={iconName} size={18} color={iconColor || C.textMuted} style={{ marginRight: 12 }} />
       <Text style={{ flex: 1, fontSize: 15, fontWeight: '700', color: C.text, letterSpacing: -0.2 }}>{label}</Text>
       <Text style={{ fontSize: 13, fontWeight: '700', color: total > 0 ? C.pink : C.textMuted, marginRight: 12 }}>
         {formatCOP(total)}<Text style={{ fontSize: 10, fontWeight: '400', color: C.textMuted }}>/mes</Text>
@@ -518,7 +519,7 @@ export default function PresupuestoScreen() {
         <View style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.teal + '60', padding: 14, marginBottom: 16, overflow: 'hidden' }}>
           <View style={{ height: 3, backgroundColor: C.teal, position: 'absolute', top: 0, left: 0, right: 0 }} />
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <Text style={{ fontSize: 16, marginRight: 8 }}>💰</Text>
+            <Ionicons name="cash" size={16} color={C.teal} style={{ marginRight: 8 }} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>Sobrante del mes anterior</Text>
               <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>Tienes {formatCOP(rollover.surplus)} disponibles de {rollover.prevMes}</Text>
@@ -596,7 +597,7 @@ export default function PresupuestoScreen() {
 
       {/* ── Ingresos ── */}
       <View style={s.section}>
-        <SectionHeader icon="💰" label="Ingresos" total={ingresosTotal} expanded={!!expanded.ingresos} onPress={() => toggleSection('ingresos')} />
+        <SectionHeader iconName="cash" iconColor={C.teal} label="Ingresos" total={ingresosTotal} expanded={!!expanded.ingresos} onPress={() => toggleSection('ingresos')} />
         {expanded.ingresos && (
           <View style={s.sectionBody}>
             {INCOME_ITEMS.map(({ key, label }) => (
@@ -620,7 +621,7 @@ export default function PresupuestoScreen() {
         }, 0);
         return (
           <View key={cat.key} style={s.section}>
-            <SectionHeader icon={cat.icon} label={cat.label} total={catTotal} expanded={!!expanded[cat.key]} onPress={() => toggleSection(cat.key)} />
+            <SectionHeader iconName={cat.iconName} label={cat.label} total={catTotal} expanded={!!expanded[cat.key]} onPress={() => toggleSection(cat.key)} />
             {expanded[cat.key] && (
               <View style={s.sectionBody}>
                 {cat.items.map(({ key, label }) => {
@@ -645,7 +646,7 @@ export default function PresupuestoScreen() {
 
       {/* ── Ahorro ── */}
       <View style={s.section}>
-        <SectionHeader icon="🐷" label="Ahorro" total={toMonthly(data.ahorro.monto, data.ahorro.periodicidad)} expanded={!!expanded.ahorro} onPress={() => toggleSection('ahorro')} />
+        <SectionHeader iconName="wallet" iconColor={C.purple} label="Ahorro" total={toMonthly(data.ahorro.monto, data.ahorro.periodicidad)} expanded={!!expanded.ahorro} onPress={() => toggleSection('ahorro')} />
         {expanded.ahorro && (
           <View style={s.sectionBody}>
             <IncomeRow

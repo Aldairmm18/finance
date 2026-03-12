@@ -89,7 +89,12 @@ function TxRow({ tx, animVal, onLongPress, onPress }) {
       <View style={{ flex: 1, marginRight: 8 }}>
         <Text style={{ fontSize: 13, color: C.text, fontWeight: '500' }} numberOfLines={1}>
           {tx.descripcion || catLabel(tx.categoria)}
-          {tx.es_extraordinario ? ' ⚡' : ''}
+          {tx.es_extraordinario ? (
+            <>
+              {' '}
+              <Ionicons name="flash" size={12} color={C.purple} />
+            </>
+          ) : null}
         </Text>
         <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
           {catLabel(tx.categoria)}{tx.subcategoria && tx.subcategoria !== 'otro' && tx.subcategoria !== tx.categoria ? ` · ${tx.subcategoria}` : ''} · {fecha}
@@ -310,7 +315,7 @@ export default function GastosScreen() {
 
       {/* ── Buscador ── */}
       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.border, paddingHorizontal: 12, marginBottom: 12 }}>
-        <Text style={{ color: C.textMuted, marginRight: 8, fontSize: 14 }}>🔍</Text>
+        <Ionicons name="search" size={16} color={C.textMuted} style={{ marginRight: 8 }} />
         <TextInput
           style={{ flex: 1, color: C.text, fontSize: 14, paddingVertical: 10 }}
           placeholder="Buscar descripción o categoría..."
@@ -435,7 +440,7 @@ export default function GastosScreen() {
 
           {filtered.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-              <Text style={{ fontSize: 28, marginBottom: 8 }}>🔍</Text>
+              <Ionicons name="search" size={28} color={C.textMuted} style={{ marginBottom: 8 }} />
               <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>
                 {txs.length === 0
                   ? 'Sin transacciones este mes.\nUsa el bot de Telegram o el\nbotón + del Dashboard.'

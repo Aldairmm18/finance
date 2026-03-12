@@ -207,7 +207,12 @@ function RecentTxRow({ tx, onPress, onLongPress }) {
       <View style={{ flex: 1, marginRight: 8 }}>
         <Text style={{ fontSize: 13, color: C.text, fontWeight: '500' }} numberOfLines={1}>
           {tx.descripcion || label}
-          {tx.es_extraordinario ? ' ⚡' : ''}
+          {tx.es_extraordinario ? (
+            <>
+              {' '}
+              <Ionicons name="flash" size={12} color={C.purple} />
+            </>
+          ) : null}
         </Text>
         <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
           {label} · {fecha}

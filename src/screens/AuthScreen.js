@@ -11,6 +11,7 @@ import {
     ScrollView,
     Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -90,7 +91,7 @@ export default function AuthScreen() {
                 {/* ── Logo / Title ── */}
                 <View style={s.logoSection}>
                     <View style={[s.logoCircle, { backgroundColor: C.teal + '20', borderColor: C.teal + '40' }]}>
-                        <Text style={s.logoEmoji}>💰</Text>
+                        <Ionicons name="cash" size={32} color={C.teal} style={s.logoIcon} />
                     </View>
                     <Text style={[s.appTitle, { color: C.text }]}>Finance</Text>
                     <Text style={[s.appSubtitle, { color: C.textMuted }]}>
@@ -240,7 +241,7 @@ function makeStyles(C) {
         // Logo
         logoSection: { alignItems: 'center', marginBottom: 32 },
         logoCircle: { width: 72, height: 72, borderRadius: 36, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-        logoEmoji: { fontSize: 32 },
+        logoIcon: { marginTop: 1 },
         appTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5, marginBottom: 6 },
         appSubtitle: { fontSize: 14, fontWeight: '500' },
 
