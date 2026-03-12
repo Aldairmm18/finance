@@ -31,6 +31,7 @@ import {
   aplicarTraspasoSobrante,
 } from '../utils/storage';
 import { formatCOP, computeTotals, mergeTransacciones } from '../utils/calculations';
+import { MASTER_CATEGORIES, CATEGORY_COLORS, normalizeCategoria } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
@@ -87,40 +88,7 @@ const EXTRA_CATS_INGRESO = [
   { key: 'otros', label: 'Otros' },
 ];
 
-const MASTER_CATEGORIAS = [
-  'Alimentación',
-  'Transporte',
-  'Servicios',
-  'Ocio',
-  'Salud',
-  'Educación',
-  'Otros',
-];
-
-const EDIT_CATEGORIAS = MASTER_CATEGORIAS;
-
-function normalizeCategoria(value) {
-  if (!value) return 'Otros';
-  const v = String(value).trim().toLowerCase();
-  const legacyMap = {
-    'alimentación': 'Alimentación',
-    'alimentacion': 'Alimentación',
-    'comida': 'Alimentación',
-    'transporte': 'Transporte',
-    'servicios': 'Servicios',
-    'hogar': 'Servicios',
-    'ocio': 'Ocio',
-    'entretenimiento': 'Ocio',
-    'salud': 'Salud',
-    'educación': 'Educación',
-    'educacion': 'Educación',
-    'otros': 'Otros',
-    'otro': 'Otros',
-  };
-  if (legacyMap[v]) return legacyMap[v];
-  const direct = MASTER_CATEGORIAS.find(cat => cat.toLowerCase() === v);
-  return direct || 'Otros';
-}
+const EDIT_CATEGORIAS = MASTER_CATEGORIES;
 
 // ─── Hook: count-up animado (easeOutCubic) ────────────────────────────────────
 function useCountUp(target, triggerKey, duration = 850) {
@@ -222,9 +190,9 @@ function EmptyState({ icon, text }) {
 function RecentTxRow({ tx, onPress, onLongPress }) {
   const { colors: C } = useTheme();
   const isIngreso = tx.tipo === 'ingreso';
-  const meta = (isIngreso ? INGRESOS_META : GASTOS_META)[tx.categoria] || null;
-  const label = meta?.label || (tx.categoria ? tx.categoria.charAt(0).toUpperCase() + tx.categoria.slice(1) : 'Otro');
-  const dotColor = meta?.color || (isIngreso ? C.teal : C.pink);
+  const master = normalizeCategoria(tx.categoria);
+  const label = master || (tx.categoria ? tx.categoria.charAt(0).toUpperCase() + tx.categoria.slice(1) : 'Otros');
+  const dotColor = CATEGORY_COLORS[master] || (isIngreso ? C.teal : C.pink);
   const fecha = tx.fecha ? tx.fecha.slice(5).replace('-', '/') : '';
   return (
     <TouchableOpacity
@@ -572,7 +540,7 @@ export default function DashboardScreen() {
       Alert.alert('Monto inválido', 'Ingresa un monto válido.');
       return;
     }
-    const categoriaFinal = MASTER_CATEGORIAS.includes(editCategoria) ? editCategoria : 'Otros';
+    const categoriaFinal = MASTER_CATEGORIES.includes(editCategoria) ? editCategoria : 'Otros';
     setEditSubmitting(true);
     try {
       if (!supabase) throw new Error('Sin conexión a Supabase');
@@ -645,12 +613,34 @@ export default function DashboardScreen() {
   const flujoCajaColor = totals.flujoCaja >= 0 ? C.teal : C.pink;
   const flujoAhorroColor = totals.flujoCajaConAhorro >= 0 ? C.teal : C.pink;
 
-  const gastosChartData = Object.entries(GASTOS_META)
-    .map(([k, m]) => ({ name: m.label, population: Math.round(totals.gastosByCategory[k] || 0), color: m.color, legendFontColor: C.text, legendFontSize: 11 }))
+  const gastosByMaster = MASTER_CATEGORIES.reduce((acc, cat) => ({ ...acc, [cat]: 0 }), {});
+  for (const [k, v] of Object.entries(totals.gastosByCategory || {})) {
+    const master = normalizeCategoria(k);
+    gastosByMaster[master] = (gastosByMaster[master] || 0) + (Number(v) || 0);
+  }
+  const gastosChartData = MASTER_CATEGORIES
+    .map(cat => ({
+      name: cat,
+      population: Math.round(gastosByMaster[cat] || 0),
+      color: CATEGORY_COLORS[cat],
+      legendFontColor: C.text,
+      legendFontSize: 11,
+    }))
     .filter(d => d.population > 0);
 
-  const ingresosChartData = Object.entries(INGRESOS_META)
-    .map(([k, m]) => ({ name: m.label, population: Math.round(totals.ingresosBySource[k] || 0), color: m.color, legendFontColor: C.text, legendFontSize: 11 }))
+  const ingresosByMaster = MASTER_CATEGORIES.reduce((acc, cat) => ({ ...acc, [cat]: 0 }), {});
+  for (const [k, v] of Object.entries(totals.ingresosBySource || {})) {
+    const master = normalizeCategoria(k);
+    ingresosByMaster[master] = (ingresosByMaster[master] || 0) + (Number(v) || 0);
+  }
+  const ingresosChartData = MASTER_CATEGORIES
+    .map(cat => ({
+      name: cat,
+      population: Math.round(ingresosByMaster[cat] || 0),
+      color: CATEGORY_COLORS[cat],
+      legendFontColor: C.text,
+      legendFontSize: 11,
+    }))
     .filter(d => d.population > 0);
 
   const tipoGastoData = [
@@ -937,6 +927,7 @@ export default function DashboardScreen() {
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
               {EDIT_CATEGORIAS.map(cat => {
                 const selected = editCategoria === cat;
+                const chipColor = CATEGORY_COLORS[cat] || C.teal;
                 return (
                   <TouchableOpacity
                     key={cat}
@@ -946,9 +937,9 @@ export default function DashboardScreen() {
                       paddingHorizontal: 12,
                       paddingVertical: 6,
                       borderRadius: 20,
-                      backgroundColor: selected ? C.teal : C.bg,
+                      backgroundColor: selected ? chipColor : C.bg,
                       borderWidth: 1,
-                      borderColor: selected ? C.teal : C.border,
+                      borderColor: selected ? chipColor : C.border,
                     }}
                   >
                     <Text style={{

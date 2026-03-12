@@ -17,6 +17,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { loadDataMes, getCurrentMes, loadTransaccionesMes, loadTransaccionesAnio } from '../utils/storage';
 import { computeTotals, mergeTransacciones, formatCOP, toMonthly } from '../utils/calculations';
+import { getCategoryColor } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
@@ -74,6 +75,7 @@ function ProgressBar({ ratio, color }) {
 function CategoryProgressCard({ catKey, actual, planned, animVal }) {
   const { colors: C } = useTheme();
   const meta = CAT_META[catKey] || { label: catKey, icon: '•', color: C.purple };
+  const masterColor = getCategoryColor(catKey, meta.color || C.purple);
   const ratio = planned > 0 ? actual / planned : actual > 0 ? 1.01 : 0;
   const pct = planned > 0 ? Math.round(ratio * 100) : null;
   const over = ratio > 1;
@@ -103,7 +105,7 @@ function CategoryProgressCard({ catKey, actual, planned, animVal }) {
           </View>
         )}
       </View>
-      <ProgressBar ratio={ratio} color={meta.color} />
+      <ProgressBar ratio={ratio} color={masterColor} />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
         <Text style={{ fontSize: 11, color: over ? '#f472b6' : C.textMuted }}>
           Gastado: <Text style={{ fontWeight: '700', color: over ? '#f472b6' : C.text }}>{formatCOP(actual)}</Text>
@@ -509,18 +511,19 @@ export default function ResumenMesScreen() {
                 .sort(([, a], [, b]) => b - a)
                 .map(([catKey, amount]) => {
                   const meta = CAT_META[catKey] || { label: catKey, icon: '•', color: C.purple };
+                  const masterColor = getCategoryColor(catKey, meta.color || C.purple);
                   const pct = anioStats.totalGastos > 0 ? Math.round((amount / anioStats.totalGastos) * 100) : 0;
                   return (
                     <View key={catKey} style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 8 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                         <Text style={{ fontSize: 18, marginRight: 8 }}>{meta.icon}</Text>
                         <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: C.text }}>{meta.label}</Text>
-                        <View style={{ backgroundColor: (meta.color || C.purple) + '22', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: meta.color || C.purple }}>{pct}%</Text>
+                        <View style={{ backgroundColor: masterColor + '22', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: masterColor }}>{pct}%</Text>
                         </View>
                       </View>
                       <View style={{ height: 5, backgroundColor: C.border, borderRadius: 3, overflow: 'hidden' }}>
-                        <View style={{ height: 5, width: `${pct}%`, backgroundColor: meta.color || C.purple, borderRadius: 3 }} />
+                        <View style={{ height: 5, width: `${pct}%`, backgroundColor: masterColor, borderRadius: 3 }} />
                       </View>
                       <Text style={{ fontSize: 12, fontWeight: '700', color: C.text, marginTop: 6 }}>
                         {formatCOP(amount)}

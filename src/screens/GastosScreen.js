@@ -19,6 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
 import { loadTransaccionesMes, getCurrentMes } from '../utils/storage';
 import { formatCOP } from '../utils/calculations';
+import { normalizeCategoria, CATEGORY_COLORS } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
@@ -45,8 +46,8 @@ const CAT_META = {
   otros: { label: 'Otros', color: '#94a3b8' },
 };
 
-function catLabel(k) { return CAT_META[k]?.label || (k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Otro'); }
-function catColor(k) { return CAT_META[k]?.color || '#94a3b8'; }
+function catLabel(k) { return normalizeCategoria(k) || CAT_META[k]?.label || (k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Otro'); }
+function catColor(k) { return CATEGORY_COLORS[normalizeCategoria(k)] || CAT_META[k]?.color || '#94a3b8'; }
 
 function mesLabel(mes) {
   const [y, m] = mes.split('-');
