@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadTransaccionesAnio } from '../utils/storage';
 import { formatCOP } from '../utils/calculations';
@@ -14,10 +14,11 @@ export default function FlujoMensualScreen() {
   const [anioTxs, setAnioTxs] = useState([]);
   const { colors: C } = useTheme();
   const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
-    loadTransaccionesAnio(currentYear)
+    loadTransaccionesAnio(selectedYear)
       .then((txs) => {
         if (!isActive) return;
         setAnioTxs(txs || []);
@@ -27,7 +28,7 @@ export default function FlujoMensualScreen() {
         setAnioTxs([]);
       });
     return () => { isActive = false; };
-  }, []));
+  }, [selectedYear]));
 
   const s = useMemo(() => makeStyles(C), [C]);
 
@@ -70,6 +71,28 @@ export default function FlujoMensualScreen() {
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <Text style={s.title}>Flujo Mensual</Text>
+
+      {/* ── Selector de año ── */}
+      <View style={[s.yearRow, { backgroundColor: C.card, borderColor: C.border }]}>
+        <TouchableOpacity onPress={() => setSelectedYear(y => y - 1)} style={s.yearBtn}>
+          <Text style={[s.yearBtnText, { color: C.textMuted }]}>‹</Text>
+        </TouchableOpacity>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={[s.yearValue, { color: C.text }]}>{selectedYear}</Text>
+          {selectedYear === currentYear && (
+            <View style={[s.yearPill, { backgroundColor: C.teal + '22', borderColor: C.teal + '40' }]}>
+              <Text style={[s.yearPillText, { color: C.teal }]}>AÑO ACTUAL</Text>
+            </View>
+          )}
+        </View>
+        <TouchableOpacity
+          onPress={() => setSelectedYear(y => Math.min(currentYear, y + 1))}
+          style={s.yearBtn}
+          disabled={selectedYear >= currentYear}
+        >
+          <Text style={[s.yearBtnText, { color: selectedYear >= currentYear ? C.border : C.textMuted }]}>›</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* ── Tarjeta resumen ── */}
       <View style={[s.summaryCard, { backgroundColor: C.card, borderColor: C.border }]}>
@@ -145,7 +168,7 @@ export default function FlujoMensualScreen() {
       })}
 
       <Text style={[s.hint, { color: C.textMuted }]}>
-        Valores calculados automáticamente desde tus transacciones del año {currentYear}.
+        Valores calculados automáticamente desde tus transacciones del año {selectedYear}.
       </Text>
     </ScrollView>
   );
@@ -156,6 +179,29 @@ function makeStyles(C) {
     container: { flex: 1, backgroundColor: C.bg },
     content:   { padding: 16, paddingTop: 52, paddingBottom: 40 },
     title:     { fontSize: 32, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 20 },
+
+    // Year selector
+    yearRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderRadius: 12,
+      borderWidth: 1,
+      paddingVertical: 10,
+      paddingHorizontal: 6,
+      marginBottom: 16,
+    },
+    yearBtn: { paddingHorizontal: 14, paddingVertical: 6 },
+    yearBtnText: { fontSize: 18 },
+    yearValue: { fontSize: 17, fontWeight: '800' },
+    yearPill: {
+      marginTop: 4,
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderWidth: 1,
+    },
+    yearPillText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
 
     // Summary card
     summaryCard:  { borderRadius: 14, borderWidth: 1, marginBottom: 20, overflow: 'hidden' },
