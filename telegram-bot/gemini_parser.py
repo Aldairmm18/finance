@@ -2,7 +2,7 @@ import json
 import os
 from typing import Any
 
-import google.generativeai as genai
+from google import genai
 
 from categories import CATEGORY_LABELS, SUBCATEGORY_LABELS
 
@@ -27,22 +27,11 @@ SYSTEM_PROMPT = (
 )
 
 
-def _ensure_genai_configured() -> None:
+def _client() -> genai.Client:
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
         raise RuntimeError("Falta GEMINI_API_KEY en el entorno")
-    genai.configure(api_key=api_key)
-
-
-def _model() -> genai.GenerativeModel:
-    return genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        system_instruction=SYSTEM_PROMPT,
-        generation_config=genai.GenerationConfig(
-            response_mime_type="application/json",
-            temperature=0.2,
-        ),
-    )
+    return genai.Client(api_key=api_key)
 
 
 def _coerce_bool(value: Any) -> bool | None:
@@ -119,9 +108,16 @@ def parse_message_gemini(text: str) -> dict | None:
     if not text:
         return None
 
-    _ensure_genai_configured()
-    model = _model()
-    response = model.generate_content(text)
+    client = _client()
+    prompt = f"{SYSTEM_PROMPT}\n\nMensaje del usuario: {text}"
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=genai.types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.2,
+        ),
+    )
     raw = getattr(response, "text", "") or ""
     if not raw:
         return None
