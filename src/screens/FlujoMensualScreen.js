@@ -1,8 +1,8 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { loadData, saveData } from '../utils/storage';
-import { formatCOP, computeTotals, parseAmount } from '../utils/calculations';
+import { loadTransaccionesAnio } from '../utils/storage';
+import { formatCOP } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 
 const MONTHS = [
@@ -11,56 +11,46 @@ const MONTHS = [
 ];
 
 export default function FlujoMensualScreen() {
-  const [totals,    setTotals]   = useState(null);
-  const [overrides, setOverrides]= useState({});
-  const [fullData,  setFullData] = useState(null);
-  const saveTimer = useRef(null);
+  const [anioTxs, setAnioTxs] = useState([]);
   const { colors: C } = useTheme();
+  const currentYear = new Date().getFullYear();
 
   useFocusEffect(useCallback(() => {
-    loadData().then(d => {
-      setFullData(d);
-      setTotals(computeTotals(d));
-      setOverrides(d.flujoMensual || {});
-    });
+    let isActive = true;
+    loadTransaccionesAnio(currentYear)
+      .then((txs) => {
+        if (!isActive) return;
+        setAnioTxs(txs || []);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setAnioTxs([]);
+      });
+    return () => { isActive = false; };
   }, []));
 
   const s = useMemo(() => makeStyles(C), [C]);
 
-  const debouncedSave = useCallback((newOverrides) => {
-    if (!fullData) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveData({ ...fullData, flujoMensual: newOverrides }), 600);
-  }, [fullData]);
-
-  const handleChange = useCallback((monthIdx, field, value) => {
-    setOverrides(prev => {
-      const monthKey = String(monthIdx);
-      const updated = { ...prev, [monthKey]: { ...(prev[monthKey] || {}), [field]: value.replace(/[^0-9]/g, '') } };
-      debouncedSave(updated);
-      return updated;
-    });
-  }, [debouncedSave]);
-
-  const resetMonth = useCallback((monthIdx) => {
-    setOverrides(prev => {
-      const updated = { ...prev };
-      delete updated[String(monthIdx)];
-      debouncedSave(updated);
-      return updated;
-    });
-  }, [debouncedSave]);
-
-  const budgetIngresos = totals ? Math.round(totals.ingresosMonthly) : 0;
-  const budgetGastos   = totals ? Math.round(totals.totalGastosMonthly) : 0;
+  const monthlyActuals = useMemo(() => {
+    const ingresos = new Array(12).fill(0);
+    const gastos = new Array(12).fill(0);
+    for (const tx of anioTxs) {
+      const fecha = tx?.fecha;
+      if (!fecha || typeof fecha !== 'string') continue;
+      const monthIdx = parseInt(fecha.split('-')[1], 10) - 1;
+      if (Number.isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) continue;
+      const monto = Number(tx.monto) || 0;
+      if (tx.tipo === 'ingreso') ingresos[monthIdx] += monto;
+      else gastos[monthIdx] += monto;
+    }
+    return { ingresos, gastos };
+  }, [anioTxs]);
 
   const getMonthValues = (idx) => {
-    const override = overrides[String(idx)];
-    const ingresos  = override?.ingresos !== undefined ? override.ingresos : String(budgetIngresos);
-    const gastos    = override?.gastos   !== undefined ? override.gastos   : String(budgetGastos);
-    const flujo     = parseAmount(ingresos) - parseAmount(gastos);
-    const hasOverride = !!override;
-    return { ingresos, gastos, flujo, hasOverride };
+    const ingresos = Math.round(monthlyActuals.ingresos[idx] || 0);
+    const gastos = Math.round(monthlyActuals.gastos[idx] || 0);
+    const flujo = ingresos - gastos;
+    return { ingresos, gastos, flujo };
   };
 
   // Para calcular el máximo flujo absoluto (escala relativa de las barras)
@@ -68,6 +58,10 @@ export default function FlujoMensualScreen() {
   const maxAbsFlujo = Math.max(...allFlujos.map(Math.abs), 1);
 
   const annualFlujo = allFlujos.reduce((a, b) => a + b, 0);
+  const annualIngresos = monthlyActuals.ingresos.reduce((a, b) => a + b, 0);
+  const annualGastos = monthlyActuals.gastos.reduce((a, b) => a + b, 0);
+  const avgIngresos = annualIngresos / 12;
+  const avgGastos = annualGastos / 12;
 
   // Meses positivos y negativos para el resumen
   const posCount = allFlujos.filter(f => f > 0).length;
@@ -87,7 +81,7 @@ export default function FlujoMensualScreen() {
               {formatCOP(annualFlujo)}
             </Text>
             <Text style={[s.summaryHint, { color: C.textMuted }]}>
-              Base: {formatCOP(budgetIngresos)}/mes ingresos · {formatCOP(budgetGastos)}/mes gastos
+              Actual: {formatCOP(avgIngresos)}/mes ingresos · {formatCOP(avgGastos)}/mes gastos
             </Text>
           </View>
           {/* Indicadores mes + / mes - */}
@@ -112,7 +106,7 @@ export default function FlujoMensualScreen() {
 
       {/* ── Filas de meses ── */}
       {MONTHS.map((month, idx) => {
-        const { ingresos, gastos, flujo, hasOverride } = getMonthValues(idx);
+        const { ingresos, gastos, flujo } = getMonthValues(idx);
         const isPositive  = flujo >= 0;
         const flujoColor  = isPositive ? C.teal : C.pink;
         const barWidth    = Math.abs(flujo) / maxAbsFlujo;
@@ -123,7 +117,6 @@ export default function FlujoMensualScreen() {
             style={[
               s.monthRow,
               { backgroundColor: C.card, borderColor: C.border },
-              hasOverride && { borderColor: C.purple + '70' },
               !isPositive && { backgroundColor: C.pink + '08' },
             ]}
           >
@@ -132,33 +125,18 @@ export default function FlujoMensualScreen() {
 
             <View style={{ flex: 1.4, paddingLeft: 10 }}>
               <Text style={[s.monthName, { color: C.text }]}>{month}</Text>
-              {hasOverride && (
-                <TouchableOpacity onPress={() => resetMonth(idx)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Text style={{ fontSize: 10, color: C.purple, marginTop: 2, fontWeight: '600' }}>↺ reset</Text>
-                </TouchableOpacity>
-              )}
               {/* Mini barra de flujo relativo */}
               <View style={{ marginTop: 5, height: 3, backgroundColor: C.border, borderRadius: 2, overflow: 'hidden' }}>
                 <View style={{ width: `${barWidth * 100}%`, height: '100%', backgroundColor: flujoColor, borderRadius: 2 }} />
               </View>
             </View>
 
-            <TextInput
-              style={[s.input, { flex: 1.6, color: C.text, backgroundColor: C.inputBg, borderColor: C.border }]}
-              value={ingresos}
-              onChangeText={v => handleChange(idx, 'ingresos', v)}
-              keyboardType="numeric"
-              placeholder={String(budgetIngresos)}
-              placeholderTextColor={C.textMuted}
-            />
-            <TextInput
-              style={[s.input, { flex: 1.6, marginHorizontal: 5, color: C.text, backgroundColor: C.inputBg, borderColor: C.border }]}
-              value={gastos}
-              onChangeText={v => handleChange(idx, 'gastos', v)}
-              keyboardType="numeric"
-              placeholder={String(budgetGastos)}
-              placeholderTextColor={C.textMuted}
-            />
+            <View style={[s.readonlyBox, { flex: 1.6, backgroundColor: C.inputBg, borderColor: C.border }]}>
+              <Text style={[s.readonlyText, { color: C.text }]}>{formatCOP(ingresos)}</Text>
+            </View>
+            <View style={[s.readonlyBox, { flex: 1.6, marginHorizontal: 5, backgroundColor: C.inputBg, borderColor: C.border }]}>
+              <Text style={[s.readonlyText, { color: C.text }]}>{formatCOP(gastos)}</Text>
+            </View>
             <Text style={[s.flujoValue, { flex: 1.4, color: flujoColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
               {formatCOP(flujo)}
             </Text>
@@ -167,7 +145,7 @@ export default function FlujoMensualScreen() {
       })}
 
       <Text style={[s.hint, { color: C.textMuted }]}>
-        Edita cualquier campo para ajustar el flujo del mes. Los cambios se guardan automáticamente.
+        Valores calculados automáticamente desde tus transacciones del año {currentYear}.
       </Text>
     </ScrollView>
   );
@@ -205,15 +183,16 @@ function makeStyles(C) {
     },
     monthAccent: { width: 3, alignSelf: 'stretch', marginRight: 0, borderRadius: 0 },
     monthName:   { fontSize: 13, fontWeight: '600' },
-    input: {
+    readonlyBox: {
       borderRadius: 8,
       paddingHorizontal: 8,
       paddingVertical: 7,
-      fontSize: 13,
       borderWidth: 1,
       marginRight: 5,
-      fontWeight: '600',
+      justifyContent: 'center',
+      minHeight: 34,
     },
+    readonlyText: { fontSize: 13, fontWeight: '600' },
     flujoValue: { fontSize: 13, fontWeight: '800', textAlign: 'right', letterSpacing: -0.3 },
     hint:       { textAlign: 'center', fontSize: 11, marginTop: 16, lineHeight: 18, letterSpacing: 0.2 },
   });
