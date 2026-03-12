@@ -87,15 +87,40 @@ const EXTRA_CATS_INGRESO = [
   { key: 'otros', label: 'Otros' },
 ];
 
-const EDIT_CATEGORIAS = [
-  { key: 'comida', label: 'Comida' },
-  { key: 'transporte', label: 'Transporte' },
-  { key: 'hogar', label: 'Servicios' },
-  { key: 'entretenimiento', label: 'Ocio' },
-  { key: 'salud', label: 'Salud' },
-  { key: 'educacion', label: 'Educación' },
-  { key: 'otros', label: 'Otros' },
+const MASTER_CATEGORIAS = [
+  'Alimentación',
+  'Transporte',
+  'Servicios',
+  'Ocio',
+  'Salud',
+  'Educación',
+  'Otros',
 ];
+
+const EDIT_CATEGORIAS = MASTER_CATEGORIAS;
+
+function normalizeCategoria(value) {
+  if (!value) return 'Otros';
+  const v = String(value).trim().toLowerCase();
+  const legacyMap = {
+    'alimentación': 'Alimentación',
+    'alimentacion': 'Alimentación',
+    'comida': 'Alimentación',
+    'transporte': 'Transporte',
+    'servicios': 'Servicios',
+    'hogar': 'Servicios',
+    'ocio': 'Ocio',
+    'entretenimiento': 'Ocio',
+    'salud': 'Salud',
+    'educación': 'Educación',
+    'educacion': 'Educación',
+    'otros': 'Otros',
+    'otro': 'Otros',
+  };
+  if (legacyMap[v]) return legacyMap[v];
+  const direct = MASTER_CATEGORIAS.find(cat => cat.toLowerCase() === v);
+  return direct || 'Otros';
+}
 
 // ─── Hook: count-up animado (easeOutCubic) ────────────────────────────────────
 function useCountUp(target, triggerKey, duration = 850) {
@@ -527,7 +552,7 @@ export default function DashboardScreen() {
     setEditingTransaction(tx);
     setEditMonto(String(tx.monto ?? ''));
     setEditDescripcion(tx.descripcion ?? '');
-    setEditCategoria(tx.categoria ?? '');
+    setEditCategoria(normalizeCategoria(tx.categoria));
   }, []);
 
   const cerrarEdicion = useCallback(() => {
@@ -547,6 +572,7 @@ export default function DashboardScreen() {
       Alert.alert('Monto inválido', 'Ingresa un monto válido.');
       return;
     }
+    const categoriaFinal = MASTER_CATEGORIAS.includes(editCategoria) ? editCategoria : 'Otros';
     setEditSubmitting(true);
     try {
       if (!supabase) throw new Error('Sin conexión a Supabase');
@@ -555,7 +581,7 @@ export default function DashboardScreen() {
         .update({
           monto: montoNum,
           descripcion: editDescripcion.trim(),
-          categoria: editCategoria.trim(),
+          categoria: categoriaFinal,
         })
         .eq('id', editingTransaction.id);
       if (error) throw error;
@@ -910,11 +936,11 @@ export default function DashboardScreen() {
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
               {EDIT_CATEGORIAS.map(cat => {
-                const selected = editCategoria === cat.key;
+                const selected = editCategoria === cat;
                 return (
                   <TouchableOpacity
-                    key={cat.key}
-                    onPress={() => setEditCategoria(cat.key)}
+                    key={cat}
+                    onPress={() => setEditCategoria(cat)}
                     disabled={editSubmitting}
                     style={{
                       paddingHorizontal: 12,
@@ -930,7 +956,7 @@ export default function DashboardScreen() {
                       fontWeight: '600',
                       color: selected ? '#fff' : C.textMuted,
                     }}>
-                      {cat.label}
+                      {cat}
                     </Text>
                   </TouchableOpacity>
                 );

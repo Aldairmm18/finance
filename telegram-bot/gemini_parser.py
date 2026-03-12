@@ -11,7 +11,44 @@ from categories import CATEGORY_LABELS, SUBCATEGORY_LABELS, KEYWORD_MAP, INGRESO
 from finance_parser import parse_message as regex_parse_message
 
 
-ALLOWED_CATEGORIES = sorted(set(CATEGORY_LABELS.keys()))
+MASTER_CATEGORIES = [
+    "Alimentación",
+    "Transporte",
+    "Servicios",
+    "Ocio",
+    "Salud",
+    "Educación",
+    "Otros",
+]
+
+MASTER_CATEGORY_LOOKUP = {c.lower(): c for c in MASTER_CATEGORIES}
+
+LEGACY_TO_MASTER = {
+    "comida": "Alimentación",
+    "alimentacion": "Alimentación",
+    "alimentación": "Alimentación",
+    "transporte": "Transporte",
+    "hogar": "Servicios",
+    "servicios": "Servicios",
+    "creditos": "Servicios",
+    "créditos": "Servicios",
+    "entretenimiento": "Ocio",
+    "ocio": "Ocio",
+    "salud": "Salud",
+    "educacion": "Educación",
+    "educación": "Educación",
+    "familia": "Otros",
+    "salario": "Otros",
+    "bonos": "Otros",
+    "comisiones": "Otros",
+    "dividendos": "Otros",
+    "ahorro": "Otros",
+    "ingresos": "Otros",
+    "otros": "Otros",
+    "otro": "Otros",
+}
+
+ALLOWED_CATEGORIES = MASTER_CATEGORIES
 ALLOWED_SUBCATEGORIES = sorted(set(SUBCATEGORY_LABELS.keys()))
 
 logger = logging.getLogger(__name__)
@@ -19,18 +56,22 @@ logger = logging.getLogger(__name__)
 class GeminiTransaction(BaseModel):
     monto: float = Field(..., description="Monto numérico de la transacción.")
     tipo: Literal["gasto", "ingreso"] = Field(..., description="Tipo de transacción.")
-    categoria: str = Field(..., description="Categoría (ej: comida, transporte, otros).")
+    categoria: Literal["Alimentación", "Transporte", "Servicios", "Ocio", "Salud", "Educación", "Otros"] = Field(
+        ..., description="Categoría permitida: Alimentación, Transporte, Servicios, Ocio, Salud, Educación u Otros."
+    )
     descripcion: str = Field(..., description="Descripción breve de la transacción.")
     es_extraordinario: bool = Field(..., description="Si es un gasto extraordinario.")
 
 SYSTEM_PROMPT = (
     "Eres un asistente financiero experto. Tu tarea es extraer datos y devolver SOLO JSON válido.\n"
     "Campos obligatorios: monto (número), tipo (\"gasto\" o \"ingreso\"), "
-    "categoria (string), descripcion (string), es_extraordinario (booleano).\n\n"
+    "categoria (string; SOLO una de: Alimentación, Transporte, Servicios, Ocio, Salud, Educación, Otros), "
+    "descripcion (string), es_extraordinario (booleano).\n\n"
     "Reglas de inferencia:\n"
+    "- Categorías permitidas (usa exactamente una): Alimentación, Transporte, Servicios, Ocio, Salud, Educación, Otros.\n"
     "- Si el usuario no especifica la categoría, INFIÉRELA por contexto "
-    "(ej: \"empanada\" -> \"comida\", \"uber\" -> \"transporte\").\n"
-    "- Si no puedes inferirla, usa \"otros\".\n"
+    "(ej: \"empanada\" -> \"Alimentación\", \"uber\" -> \"Transporte\").\n"
+    "- NO inventes categorías nuevas. Si no encaja en ninguna, usa \"Otros\".\n"
     "- Si el usuario no dice si es extraordinario, asume false.\n"
     "- Tu objetivo es NUNCA dejar campos vacíos y NUNCA pedir aclaraciones, "
     "a menos que el monto no exista.\n"
@@ -103,21 +144,34 @@ def _normalize_text(value: Any) -> str | None:
     return None
 
 
+def _map_to_master(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        v = value.strip().lower()
+    else:
+        v = str(value).strip().lower()
+    if not v:
+        return None
+    if v in MASTER_CATEGORY_LOOKUP:
+        return MASTER_CATEGORY_LOOKUP[v]
+    return LEGACY_TO_MASTER.get(v)
+
+
 def _validate_payload(payload: dict, text: str) -> dict | None:
     monto = _coerce_number(payload.get("monto"))
     tipo = _normalize_text(payload.get("tipo"))
-    categoria = _normalize_text(payload.get("categoria"))
+    categoria = _map_to_master(payload.get("categoria"))
     descripcion = _normalize_text(payload.get("descripcion"))
     es_extraordinario = _coerce_bool(payload.get("es_extraordinario"))
 
     lower = (text or "").lower()
-    categoria = (categoria or "").lower()
     descripcion = descripcion or "Sin descripción"
     es_extraordinario = es_extraordinario if es_extraordinario is not None else False
 
     if not categoria or categoria not in ALLOWED_CATEGORIES:
         cat_infer, sub_infer = _classify_from_text(lower)
-        categoria = cat_infer if cat_infer in ALLOWED_CATEGORIES else "otros"
+        categoria = _map_to_master(cat_infer) or "Otros"
     else:
         sub_infer = _classify_from_text(lower)[1]
 
