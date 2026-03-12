@@ -8,6 +8,8 @@ Texto libre: "almuerzo 15000", "salario 3.500.000", "extra multa 200000"
 
 import logging
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -31,6 +33,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+
+
+# ─── Render dummy web server (binds $PORT) ────────────────────────────────────
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain; charset=utf-8')
+        self.end_headers()
+        self.wfile.write(b'OK')
+
+    def log_message(self, format, *args):
+        return
+
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), DummyHandler)
+    server.serve_forever()
 
 
 # ─── Helpers de formato ───────────────────────────────────────────────────────
@@ -419,6 +439,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     logger.info('Bot listo. Ctrl+C para detener.')
+    threading.Thread(target=run_dummy_server, daemon=True).start()
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
