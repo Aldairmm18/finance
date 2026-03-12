@@ -322,6 +322,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
             onChangeText={setDescripcion}
             blurOnSubmit={true}
             returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             editable={!isSubmitting}
           />
 
@@ -348,6 +349,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
             keyboardType="numeric"
             blurOnSubmit={true}
             returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             editable={!isSubmitting}
           />
           {monto ? (
