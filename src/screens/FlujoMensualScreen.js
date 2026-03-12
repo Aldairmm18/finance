@@ -10,24 +10,28 @@ const MONTHS = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
+const buildEmptyBudgets = () =>
+  Array.from({ length: 12 }, () => ({ ingresos: 0, gastos: 0 }));
+
 export default function FlujoMensualScreen() {
   const [anioTxs, setAnioTxs] = useState([]);
-  const [budgetByMonth, setBudgetByMonth] = useState(() =>
-    Array.from({ length: 12 }, () => ({ ingresos: 0, gastos: 0 }))
-  );
+  const [budgetByMonth, setBudgetByMonth] = useState(buildEmptyBudgets);
   const { colors: C } = useTheme();
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
+    setAnioTxs([]);
+    setBudgetByMonth(buildEmptyBudgets());
     const monthKeys = Array.from({ length: 12 }, (_, i) =>
       `${selectedYear}-${String(i + 1).padStart(2, '0')}`
     );
     const loadBudgets = Promise.all(
       monthKeys.map(async (mesKey) => {
         try {
-          const data = await loadDataMes(mesKey);
+          const data = await loadDataMes(mesKey, { strict: true });
+          if (!data) return { ingresos: 0, gastos: 0 };
           const totals = computeTotals(data);
           return {
             ingresos: totals?.ingresosMonthly || 0,
@@ -42,12 +46,12 @@ export default function FlujoMensualScreen() {
       .then(([txs, budgets]) => {
         if (!isActive) return;
         setAnioTxs(txs || []);
-        setBudgetByMonth(budgets || Array.from({ length: 12 }, () => ({ ingresos: 0, gastos: 0 })));
+        setBudgetByMonth(budgets || buildEmptyBudgets());
       })
       .catch(() => {
         if (!isActive) return;
         setAnioTxs([]);
-        setBudgetByMonth(Array.from({ length: 12 }, () => ({ ingresos: 0, gastos: 0 })));
+        setBudgetByMonth(buildEmptyBudgets());
       });
     return () => { isActive = false; };
   }, [selectedYear]));
@@ -64,14 +68,17 @@ export default function FlujoMensualScreen() {
     for (const tx of anioTxs) {
       const fecha = tx?.fecha;
       if (!fecha || typeof fecha !== 'string') continue;
-      const monthIdx = parseInt(fecha.split('-')[1], 10) - 1;
+      const [yearStr, monthStr] = fecha.split('-');
+      const year = parseInt(yearStr, 10);
+      const monthIdx = parseInt(monthStr, 10) - 1;
+      if (year !== selectedYear) continue;
       if (Number.isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) continue;
       const monto = Number(tx.monto) || 0;
       if (tx.tipo === 'ingreso') ingresos[monthIdx] += monto;
       else gastos[monthIdx] += monto;
     }
     return { ingresos, gastos };
-  }, [anioTxs, budgetByMonth]);
+  }, [anioTxs, budgetByMonth, selectedYear]);
 
   const getMonthValues = (idx) => {
     const ingresos = Math.round(monthlyActuals.ingresos[idx] || 0);

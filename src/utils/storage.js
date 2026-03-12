@@ -208,9 +208,10 @@ export async function saveData(data) {
  * Si no existe registro para ese mes, copia el presupuesto base como punto de partida.
  * @param {string} mes  Formato "YYYY-MM"
  */
-export async function loadDataMes(mes) {
+export async function loadDataMes(mes, options = {}) {
   const localKey = `${STORAGE_MES_PREFIX}_${mes}`;
   const uid = await getUserId();
+  const strict = options?.strict === true;
 
   // 1. Intentar presupuesto_mensual en Supabase
   if (supabase && uid) {
@@ -241,6 +242,7 @@ export async function loadDataMes(mes) {
   } catch { }
 
   // 3. Sin registro mensual → usar presupuesto base como punto de partida (no guardar aún)
+  if (strict) return null;
   return loadData();
 }
 
@@ -440,6 +442,47 @@ export async function registrarExtraordinario({ descripcion, monto, categoria, t
     .single();
   if (error) throw error;
   return data;
+}
+
+/**
+ * Calcula el sobrante (rollover) del mes anterior al mes dado.
+ * Sobrante = Ingresos presupuestados - Gastos reales (transacciones).
+ * @param {string} mes  Formato "YYYY-MM" del mes ACTUAL (se mira el anterior)
+ * @returns {{ surplus: number, prevMes: string }}
+ */
+export async function computeRollover(mes) {
+  const [y, m] = mes.split('-').map(Number);
+  const d = new Date(y, m - 2, 1); // mes anterior
+  const prevMes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+  try {
+    // 1. Cargar presupuesto del mes anterior
+    const prevData = await loadDataMes(prevMes);
+    if (!prevData) return { surplus: 0, prevMes };
+
+    // Calcular ingresos presupuestados
+    const { computeTotals } = require('./calculations');
+    const totals = computeTotals(prevData);
+    if (!totals) return { surplus: 0, prevMes };
+
+    // 2. Cargar gastos reales del mes anterior
+    const txs = await loadTransaccionesMes(prevMes);
+    const gastosReales = (txs || [])
+      .filter(tx => tx.tipo === 'gasto')
+      .reduce((sum, tx) => sum + (tx.monto || 0), 0);
+    const ingresosReales = (txs || [])
+      .filter(tx => tx.tipo === 'ingreso')
+      .reduce((sum, tx) => sum + (tx.monto || 0), 0);
+
+    // Surplus = (Ingresos presupuestados + ingresos extraordinarios) - (Gastos presupuestados + gastos extraordinarios)
+    const totalIngresos = totals.ingresosMonthly + ingresosReales;
+    const totalGastos = totals.totalGastosMonthly + gastosReales;
+    const surplus = totalIngresos - totalGastos;
+
+    return { surplus: Math.max(0, Math.round(surplus)), prevMes };
+  } catch {
+    return { surplus: 0, prevMes };
+  }
 }
 
 /**
