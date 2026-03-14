@@ -20,7 +20,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
 import { loadTransaccionesMes, getCurrentMes } from '../utils/storage';
 import { formatCOP } from '../utils/calculations';
-import { normalizeCategoria, CATEGORY_COLORS, getCategoryIcon } from '../utils/categoryTheme';
+import { getCategoryColor, getCategoryIcon } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
@@ -30,25 +30,17 @@ const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
-const CAT_META = {
-  hogar: { label: 'Hogar', color: '#818cf8' },
-  comida: { label: 'Comida', color: '#2dd4bf' },
-  transporte: { label: 'Transporte', color: '#f59e0b' },
-  creditos: { label: 'Créditos', color: '#f472b6' },
-  entretenimiento: { label: 'Entretenimiento', color: '#60a5fa' },
-  familia: { label: 'Familia', color: '#34d399' },
-  salario: { label: 'Salario', color: '#2dd4bf' },
-  bonos: { label: 'Bonos', color: '#818cf8' },
-  comisiones: { label: 'Comisiones', color: '#60a5fa' },
-  dividendos: { label: 'Dividendos', color: '#f472b6' },
-  ahorro: { label: 'Ahorro', color: '#fbbf24' },
-  ingresos: { label: 'Ingresos', color: '#2dd4bf' },
-  otro: { label: 'Otro', color: '#94a3b8' },
-  otros: { label: 'Otros', color: '#94a3b8' },
+// Etiquetas de display para las categorías de la app (nombres originales, no master)
+const CAT_LABELS = {
+  hogar: 'Hogar', comida: 'Comida', transporte: 'Transporte',
+  creditos: 'Créditos', entretenimiento: 'Entretenimiento', familia: 'Familia',
+  salario: 'Salario', bonos: 'Bonos', comisiones: 'Comisiones',
+  dividendos: 'Dividendos', ahorro: 'Ahorro', ingresos: 'Ingresos',
+  otro: 'Otro', otros: 'Otros', salud: 'Salud', educacion: 'Educación',
 };
 
-function catLabel(k) { return normalizeCategoria(k) || CAT_META[k]?.label || (k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Otro'); }
-function catColor(k) { return CATEGORY_COLORS[normalizeCategoria(k)] || CAT_META[k]?.color || '#94a3b8'; }
+function catLabel(k) { return CAT_LABELS[k] || (k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Otro'); }
+function catColor(k) { return getCategoryColor(k); }
 
 function mesLabel(mes) {
   const [y, m] = mes.split('-');

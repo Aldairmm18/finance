@@ -24,15 +24,8 @@ import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
 
 // ─── Metadata de categorías ───────────────────────────────────────────────────
-
-const CAT_META = {
-  hogar: { label: 'Hogar', color: '#818cf8' },
-  comida: { label: 'Comida', color: '#2dd4bf' },
-  transporte: { label: 'Transporte', color: '#f59e0b' },
-  creditos: { label: 'Créditos', color: '#f472b6' },
-  entretenimiento: { label: 'Entretenimiento', color: '#60a5fa' },
-  familia: { label: 'Familia', color: '#34d399' },
-};
+// Las etiquetas de display usan el nombre de la categoría original (no master)
+// para que el usuario vea "Hogar" y no "Servicios" en las tarjetas.
 
 const TIPO_LABELS = {
   hogar: 'Hogar',
@@ -75,8 +68,8 @@ function ProgressBar({ ratio, color }) {
 
 function CategoryProgressCard({ catKey, actual, planned, animVal }) {
   const { colors: C } = useTheme();
-  const meta = CAT_META[catKey] || { label: catKey, icon: '•', color: C.purple };
-  const masterColor = getCategoryColor(catKey, meta.color || C.purple);
+  const label = TIPO_LABELS[catKey] || (catKey ? catKey.charAt(0).toUpperCase() + catKey.slice(1) : 'Otro');
+  const masterColor = getCategoryColor(catKey, C.purple);
   const iconName = getCategoryIcon(catKey);
   const ratio = planned > 0 ? actual / planned : actual > 0 ? 1.01 : 0;
   const pct = planned > 0 ? Math.round(ratio * 100) : null;
@@ -95,7 +88,7 @@ function CategoryProgressCard({ catKey, actual, planned, animVal }) {
     ]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
         <Ionicons name={iconName} size={16} color={masterColor} style={{ marginRight: 8 }} />
-        <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: C.text }}>{meta.label}</Text>
+        <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: C.text }}>{label}</Text>
         {pct !== null && (
           <View style={{
             backgroundColor: pctColor + '22',
@@ -517,15 +510,15 @@ export default function ResumenMesScreen() {
               {Object.entries(anioStats.gastoByCat)
                 .sort(([, a], [, b]) => b - a)
                 .map(([catKey, amount]) => {
-                  const meta = CAT_META[catKey] || { label: catKey, icon: '•', color: C.purple };
-                  const masterColor = getCategoryColor(catKey, meta.color || C.purple);
+                  const catLabel = TIPO_LABELS[catKey] || (catKey ? catKey.charAt(0).toUpperCase() + catKey.slice(1) : 'Otro');
+                  const masterColor = getCategoryColor(catKey, C.purple);
                   const pct = anioStats.totalGastos > 0 ? Math.round((amount / anioStats.totalGastos) * 100) : 0;
                   const iconName = getCategoryIcon(catKey);
                   return (
                     <View key={catKey} style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 8 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                         <Ionicons name={iconName} size={16} color={masterColor} style={{ marginRight: 8 }} />
-                        <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: C.text }}>{meta.label}</Text>
+                        <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: C.text }}>{catLabel}</Text>
                         <View style={{ backgroundColor: masterColor + '22', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
                           <Text style={{ fontSize: 11, fontWeight: '800', color: masterColor }}>{pct}%</Text>
                         </View>

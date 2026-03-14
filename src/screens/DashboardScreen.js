@@ -39,29 +39,6 @@ import { supabase } from '../services/supabase';
 
 const screenWidth = Dimensions.get('window').width;
 
-const GASTOS_META = {
-  hogar: { label: 'Hogar', color: '#818cf8' },
-  comida: { label: 'Comida', color: '#2dd4bf' },
-  transporte: { label: 'Transporte', color: '#f59e0b' },
-  creditos: { label: 'Créditos', color: '#f472b6' },
-  entretenimiento: { label: 'Entretenimiento', color: '#60a5fa' },
-  familia: { label: 'Familia', color: '#34d399' },
-};
-
-const INGRESOS_META = {
-  salario: { label: 'Salario', color: '#2dd4bf' },
-  bonos: { label: 'Bonos', color: '#818cf8' },
-  dividendos: { label: 'Dividendos', color: '#f472b6' },
-  comisiones: { label: 'Comisiones', color: '#60a5fa' },
-  hogar: { label: 'Hogar', color: '#a78bfa' },
-  comida: { label: 'Comida', color: '#34d399' },
-  transporte: { label: 'Transporte', color: '#f59e0b' },
-  creditos: { label: 'Créditos', color: '#fb7185' },
-  entretenimiento: { label: 'Entretenimiento', color: '#38bdf8' },
-  familia: { label: 'Familia', color: '#4ade80' },
-  ahorro: { label: 'Ahorro', color: '#fbbf24' },
-  otros: { label: 'Otros', color: '#94a3b8' },
-};
 
 const EXTRA_CATS_GASTO = [
   { key: 'hogar', label: 'Hogar' },
@@ -1072,7 +1049,6 @@ function makeStyles(C) {
     fondoAccent: { height: 3 },
     fondoBody: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, gap: 12 },
     fondoLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-    fondoIcon: { marginRight: 0 },
     fondoLabel: { fontSize: 13, fontWeight: '700', marginBottom: 2 },
     fondoSub: { fontSize: 11 },
     fondoValue: { fontSize: 19, fontWeight: '800', letterSpacing: -0.5, flexShrink: 0 },
