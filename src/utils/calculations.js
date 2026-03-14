@@ -34,7 +34,13 @@ export function toAnnual(amount, periodicidad) {
 
 export function formatCOP(amount) {
   const num = Math.round(amount || 0);
-  return '$' + num.toLocaleString('es-CO');
+  try {
+    // Intenta locale colombiano; puede fallar en algunos Android sin datos CLDR completos
+    const formatted = num.toLocaleString('es-CO');
+    if (formatted && formatted !== String(num)) return '$' + formatted;
+  } catch { /* fallback */ }
+  // Fallback manual: separadores de miles con punto
+  return '$' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
 /**

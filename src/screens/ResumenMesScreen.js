@@ -63,7 +63,7 @@ function mesLabel(mes) {
 function ProgressBar({ ratio, color }) {
   const { colors: C } = useTheme();
   const clamped = Math.min(ratio, 1);
-  const barColor = ratio > 1 ? '#f472b6' : ratio > 0.8 ? '#f59e0b' : color;
+  const barColor = ratio > 1 ? C.pink : ratio > 0.8 ? C.amber || '#f59e0b' : color;
   return (
     <View style={{ height: 5, backgroundColor: C.border, borderRadius: 3, overflow: 'hidden' }}>
       <View style={{ height: 5, width: `${Math.round(clamped * 100)}%`, backgroundColor: barColor, borderRadius: 3 }} />
@@ -81,7 +81,7 @@ function CategoryProgressCard({ catKey, actual, planned, animVal }) {
   const ratio = planned > 0 ? actual / planned : actual > 0 ? 1.01 : 0;
   const pct = planned > 0 ? Math.round(ratio * 100) : null;
   const over = ratio > 1;
-  const pctColor = over ? '#f472b6' : ratio > 0.8 ? '#f59e0b' : C.teal;
+  const pctColor = over ? C.pink : ratio > 0.8 ? C.amber || '#f59e0b' : C.teal;
 
   const animStyle = animVal ? {
     opacity: animVal,
@@ -109,8 +109,8 @@ function CategoryProgressCard({ catKey, actual, planned, animVal }) {
       </View>
       <ProgressBar ratio={ratio} color={masterColor} />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-        <Text style={{ fontSize: 11, color: over ? '#f472b6' : C.textMuted }}>
-          Gastado: <Text style={{ fontWeight: '700', color: over ? '#f472b6' : C.text }}>{formatCOP(actual)}</Text>
+        <Text style={{ fontSize: 11, color: over ? C.pink : C.textMuted }}>
+          Gastado: <Text style={{ fontWeight: '700', color: over ? C.pink : C.text }}>{formatCOP(actual)}</Text>
         </Text>
         {planned > 0 && (
           <Text style={{ fontSize: 11, color: C.textMuted }}>
@@ -199,7 +199,7 @@ export default function ResumenMesScreen() {
     try {
       const [d, transactions] = await Promise.all([
         loadDataMes(mes),
-        loadTransaccionesMes(),
+        loadTransaccionesMes(mes),
       ]);
       const base = computeTotals(d);
       const merged = mergeTransacciones(base, transactions);
@@ -382,7 +382,7 @@ export default function ResumenMesScreen() {
     );
   }
 
-  const cloudDotColor = cloudStatus === 'synced' ? '#34d399' : cloudStatus === 'error' ? '#f472b6' : C.border;
+  const cloudDotColor = cloudStatus === 'synced' ? C.teal : cloudStatus === 'error' ? C.pink : C.border;
   const historicoMaxYear = currentYear - 1;
   const historicoMinYear = 2000;
   const historicoHasPastYears = historicoMaxYear >= historicoMinYear;

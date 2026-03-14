@@ -424,7 +424,8 @@ export async function registrarExtraordinario({ descripcion, monto, categoria, t
   if (!supabase) throw new Error('Sin conexión a Supabase');
   const uid = await getUserId();
   if (!uid) throw new Error('Usuario no autenticado');
-  const today = new Date().toISOString().split('T')[0];
+  const _now = new Date();
+  const today = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
   const { data, error } = await supabase
     .from('transacciones')
     .insert({

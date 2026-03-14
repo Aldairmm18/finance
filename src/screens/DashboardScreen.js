@@ -43,7 +43,7 @@ const GASTOS_META = {
   hogar: { label: 'Hogar', color: '#818cf8' },
   comida: { label: 'Comida', color: '#2dd4bf' },
   transporte: { label: 'Transporte', color: '#f59e0b' },
-  creditos: { label: 'Creditos', color: '#f472b6' },
+  creditos: { label: 'Créditos', color: '#f472b6' },
   entretenimiento: { label: 'Entretenimiento', color: '#60a5fa' },
   familia: { label: 'Familia', color: '#34d399' },
 };
@@ -70,7 +70,7 @@ const EXTRA_CATS_GASTO = [
   { key: 'salud', label: 'Salud' },
   { key: 'entretenimiento', label: 'Entretenimiento' },
   { key: 'familia', label: 'Familia' },
-  { key: 'educacion', label: 'Educacion' },
+  { key: 'educacion', label: 'Educación' },
   { key: 'otros', label: 'Otros' },
 ];
 
@@ -181,7 +181,7 @@ function EmptyState({ icon, text }) {
   const { colors: C } = useTheme();
   return (
     <View style={{ alignItems: 'center', paddingVertical: 28, paddingHorizontal: 12 }}>
-      <Text style={{ fontSize: 36, marginBottom: 10 }}>{icon}</Text>
+      <Ionicons name={icon} size={36} color={C.textMuted} style={{ marginBottom: 10 }} />
       <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>{text}</Text>
     </View>
   );
@@ -262,8 +262,8 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
     Keyboard.dismiss();
     if (isSubmitting) return;
     const montoNum = parseFloat(String(monto).replace(/[^0-9.]/g, ''));
-    if (!descripcion.trim()) { setError('Ingresa una descripcion'); return; }
-    if (!montoNum || montoNum <= 0) { setError('Ingresa un monto valido'); return; }
+    if (!descripcion.trim()) { setError('Ingresa una descripción'); return; }
+    if (!montoNum || montoNum <= 0) { setError('Ingresa un monto válido'); return; }
     setError('');
     setIsSubmitting(true);
     try {
@@ -310,7 +310,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>
-                Transaccion extraordinaria
+                Transacción extraordinaria
               </Text>
               <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
                 Registra algo fuera de tu presupuesto
@@ -346,7 +346,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
 
           {/* Descripcion */}
           <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
-            Descripcion
+            Descripción
           </Text>
           <TextInput
             style={{
@@ -360,7 +360,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
               paddingVertical: 10,
               marginBottom: 14,
             }}
-            placeholder={tipo === 'ingreso' ? 'Ej. Freelance, Venta, Regalo...' : 'Ej. Medico, Reparacion, Regalo...'}
+            placeholder={tipo === 'ingreso' ? 'Ej. Freelance, Venta, Regalo...' : 'Ej. Médico, Reparación, Regalo...'}
             placeholderTextColor={C.textMuted}
             value={descripcion}
             onChangeText={setDescripcion}
@@ -406,7 +406,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
 
           {/* Categoria */}
           <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 8 }}>
-            Categoria
+            Categoría
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
             {cats.map(cat => (
@@ -436,7 +436,7 @@ function ExtraFABModal({ visible, onClose, onSuccess }) {
 
           {/* Error */}
           {error ? (
-            <Text style={{ color: '#f472b6', fontSize: 12, marginBottom: 12 }}>{error}</Text>
+            <Text style={{ color: C.pink, fontSize: 12, marginBottom: 12 }}>{error}</Text>
           ) : null}
 
           {/* Boton guardar */}
@@ -653,7 +653,7 @@ export default function DashboardScreen() {
   const tipoGastoData = [
     { name: 'Esenciales', population: Math.round(totals.esencialesMonthly), color: C.teal, legendFontColor: C.text, legendFontSize: 11 },
     { name: 'No Esenciales', population: Math.round(totals.noEsencialesMonthly), color: C.pink, legendFontColor: C.text, legendFontSize: 11 },
-    { name: 'Creditos', population: Math.round(totals.creditosMonthly), color: C.purple, legendFontColor: C.text, legendFontSize: 11 },
+    { name: 'Créditos', population: Math.round(totals.creditosMonthly), color: C.purple, legendFontColor: C.text, legendFontSize: 11 },
   ].filter(d => d.population > 0);
 
   const chartWidth = screenWidth - 64;
@@ -669,7 +669,7 @@ export default function DashboardScreen() {
     return str.charAt(0).toUpperCase() + str.slice(1);
   })();
 
-  const cloudDotColor = cloudStatus === 'synced' ? '#34d399' : cloudStatus === 'error' ? '#f472b6' : C.border;
+  const cloudDotColor = cloudStatus === 'synced' ? C.teal : cloudStatus === 'error' ? C.pink : C.border;
 
   const totalExtrasGasto = extraordinarios.reduce((sum, ex) => sum + (ex.monto || 0), 0);
   const totalExtrasIngreso = extrasIngreso.reduce((sum, ex) => sum + (ex.monto || 0), 0);
@@ -722,7 +722,7 @@ export default function DashboardScreen() {
           <View style={[s.fondoAccent, { backgroundColor: C.purple }]} />
           <View style={s.fondoBody}>
             <View style={s.fondoLeft}>
-              <Text style={s.fondoIcon}>*</Text>
+              <Ionicons name="shield-checkmark-outline" size={22} color={C.purple} />
               <View>
                 <Text style={[s.fondoLabel, { color: C.text }]}>Fondo de Emergencia</Text>
                 <Text style={[s.fondoSub, { color: C.textMuted }]}>3 meses de gastos esenciales</Text>
@@ -743,7 +743,7 @@ export default function DashboardScreen() {
               transform: [{ translateY: cardAnims[8].interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
             },
           ]}>
-            <View style={{ height: 3, backgroundColor: '#f472b6' }} />
+            <View style={{ height: 3, backgroundColor: C.pink }} />
             <View style={{ padding: 16 }}>
               <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
                 Extraordinarios del mes
@@ -767,7 +767,7 @@ export default function DashboardScreen() {
                       borderColor: C.border,
                     }}>
                       <Text style={{ fontSize: 13, color: C.text, flex: 1, marginRight: 8 }} numberOfLines={1}>
-                        {ex.descripcion || 'Sin descripcion'}
+                        {ex.descripcion || 'Sin descripción'}
                       </Text>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: C.pink }}>
                         -{formatCOP(ex.monto || 0)}
@@ -776,7 +776,7 @@ export default function DashboardScreen() {
                   ))}
                   {hiddenGastos > 0 && (
                     <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 4, paddingLeft: 8 }}>
-                      +{hiddenGastos} mas
+                      +{hiddenGastos} más
                     </Text>
                   )}
                 </>
@@ -800,7 +800,7 @@ export default function DashboardScreen() {
                       borderColor: C.border,
                     }}>
                       <Text style={{ fontSize: 13, color: C.text, flex: 1, marginRight: 8 }} numberOfLines={1}>
-                        {ex.descripcion || 'Sin descripcion'}
+                        {ex.descripcion || 'Sin descripción'}
                       </Text>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: C.teal }}>
                         +{formatCOP(ex.monto || 0)}
@@ -809,7 +809,7 @@ export default function DashboardScreen() {
                   ))}
                   {hiddenIngresos > 0 && (
                     <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 4, paddingLeft: 8 }}>
-                      +{hiddenIngresos} mas
+                      +{hiddenIngresos} más
                     </Text>
                   )}
                 </>
@@ -842,22 +842,22 @@ export default function DashboardScreen() {
         )}
 
         {/* ── Graficas ── */}
-        <ChartCard title="Distribucion de Gastos" accentColor={C.pink} animVal={cardAnims[5]}>
+        <ChartCard title="Distribución de Gastos" accentColor={C.pink} animVal={cardAnims[5]}>
           {gastosChartData.length > 0 ? (
             <PieChart data={gastosChartData} width={chartWidth} height={200} chartConfig={chartCfg} accessor="population" backgroundColor="transparent" paddingLeft="15" absolute={false} />
-          ) : <EmptyState icon="+" text={'Ingresa tus gastos en\nPresupuesto para ver la grafica'} />}
+          ) : <EmptyState icon="pie-chart-outline" text={'Ingresa tus gastos en\nPresupuesto para ver la gráfica'} />}
         </ChartCard>
 
         <ChartCard title="Fuentes de Ingreso" accentColor={C.teal} animVal={cardAnims[6]}>
           {ingresosChartData.length > 0 ? (
             <PieChart data={ingresosChartData} width={chartWidth} height={200} chartConfig={chartCfg} accessor="population" backgroundColor="transparent" paddingLeft="15" absolute={false} />
-          ) : <EmptyState icon="$" text={'Ingresa tus fuentes de\ningreso en Presupuesto'} />}
+          ) : <EmptyState icon="trending-up-outline" text={'Ingresa tus fuentes de\ningreso en Presupuesto'} />}
         </ChartCard>
 
         <ChartCard title="Tipo de Gasto" accentColor={C.purple} animVal={cardAnims[7]}>
           {tipoGastoData.length > 0 ? (
             <PieChart data={tipoGastoData} width={chartWidth} height={200} chartConfig={chartCfg} accessor="population" backgroundColor="transparent" paddingLeft="15" absolute={false} />
-          ) : <EmptyState icon="#" text={'Clasifica tus gastos como\nEsencial / No Esencial'} />}
+          ) : <EmptyState icon="layers-outline" text={'Clasifica tus gastos como\nEsencial / No Esencial'} />}
         </ChartCard>
 
       </ScrollView>
@@ -1072,7 +1072,7 @@ function makeStyles(C) {
     fondoAccent: { height: 3 },
     fondoBody: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, gap: 12 },
     fondoLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-    fondoIcon: { fontSize: 22 },
+    fondoIcon: { marginRight: 0 },
     fondoLabel: { fontSize: 13, fontWeight: '700', marginBottom: 2 },
     fondoSub: { fontSize: 11 },
     fondoValue: { fontSize: 19, fontWeight: '800', letterSpacing: -0.5, flexShrink: 0 },
