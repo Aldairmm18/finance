@@ -8,7 +8,6 @@ from google import genai
 from pydantic import BaseModel, Field
 
 from categories import CATEGORY_LABELS, SUBCATEGORY_LABELS, KEYWORD_MAP, INGRESO_KEYWORDS, INGRESO_CATEGORIES
-from finance_parser import parse_message as regex_parse_message
 
 
 MASTER_CATEGORIES = [
@@ -220,16 +219,10 @@ def parse_message_gemini(text: str) -> dict | None:
         payload = json.loads(cleaned)
     except json.JSONDecodeError as e:
         logger.error("Error parseando Gemini: %s. Raw response: %s", e, raw)
-        fallback = regex_parse_message(text)
-        if fallback:
-            return fallback
         raise GeminiParseError(f"JSON inválido: {e}", raw) from e
 
     if not isinstance(payload, dict):
         logger.error("Error parseando Gemini: %s. Raw response: %s", "Respuesta no es JSON objeto", raw)
-        fallback = regex_parse_message(text)
-        if fallback:
-            return fallback
         raise GeminiParseError("Respuesta no es un objeto JSON", raw)
 
     return _validate_payload(payload, text)

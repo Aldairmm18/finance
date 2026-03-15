@@ -1,14 +1,3 @@
-export const COLORS = {
-  bg: '#0a0a1a',
-  card: '#12122a',
-  border: '#2a2a4a',
-  teal: '#2dd4bf',
-  pink: '#f472b6',
-  purple: '#818cf8',
-  text: '#e2e8f0',
-  textMuted: '#94a3b8',
-};
-
 export const PERIODICIDADES = [
   { label: 'Mensual', value: 'mensual', months: 1 },
   { label: 'Bimensual', value: 'bimensual', months: 2 },
