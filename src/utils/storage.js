@@ -5,14 +5,23 @@ const STORAGE_KEY = '@finance_data_v1';
 const STORAGE_MES_PREFIX = '@finance_mes_v1';
 export const SYNC_KEY = '@finance_last_sync';
 /** Retorna el user_id autenticado, o null si no hay sesión */
+let _cachedUserId = null;
+
 async function getUserId() {
+  if (_cachedUserId) return _cachedUserId;
   if (!supabase) return null;
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    return user?.id || null;
+    _cachedUserId = user?.id || null;
+    return _cachedUserId;
   } catch {
     return null;
   }
+}
+
+// Llamar esta función cuando el usuario cierra sesión para limpiar la caché
+export function clearUserIdCache() {
+  _cachedUserId = null;
 }
 
 /** Retorna el mes actual en formato "YYYY-MM" */

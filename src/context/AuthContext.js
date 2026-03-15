@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
+import { clearUserIdCache } from '../utils/storage';
 
 const AuthContext = createContext(null);
 
@@ -23,7 +24,8 @@ export function AuthProvider({ children }) {
 
         // Escuchar cambios de sesión
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, s) => {
+            (event, s) => {
+                if (event === 'SIGNED_OUT') clearUserIdCache();
                 setSession(s);
                 setUser(s?.user ?? null);
             },
@@ -50,6 +52,7 @@ export function AuthProvider({ children }) {
 
     const signOut = useCallback(async () => {
         if (!supabase) return;
+        clearUserIdCache();
         await supabase.auth.signOut();
     }, []);
 
