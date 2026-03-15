@@ -3,7 +3,6 @@ import React, {
   useMemo,
   useRef,
   useCallback,
-  useEffect,
 } from 'react';
 import {
   View,
@@ -13,13 +12,8 @@ import {
   Dimensions,
   Animated,
   TouchableOpacity,
-  Modal,
   Alert,
-  TextInput,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -28,7 +22,6 @@ import {
   loadDataMes,
   getCurrentMes,
   loadTransaccionesMes,
-  registrarExtraordinario,
   aplicarTraspasoSobrante,
 } from '../utils/storage';
 import { formatCOP, computeTotals, mergeTransacciones } from '../utils/calculations';
@@ -36,122 +29,12 @@ import { MASTER_CATEGORIES, CATEGORY_COLORS, normalizeCategoria, getCategoryIcon
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
+import ExtraFABModal from '../components/ExtraFABModal';
+import EditTransaccionModal from '../components/EditTransaccionModal';
+import StatCard, { useCountUp } from '../components/StatCard';
+import ChartCard from '../components/ChartCard';
 
 const screenWidth = Dimensions.get('window').width;
-
-
-const EXTRA_CATS_GASTO = [
-  { key: 'hogar', label: 'Hogar' },
-  { key: 'comida', label: 'Comida' },
-  { key: 'transporte', label: 'Transporte' },
-  { key: 'salud', label: 'Salud' },
-  { key: 'entretenimiento', label: 'Entretenimiento' },
-  { key: 'familia', label: 'Familia' },
-  { key: 'educacion', label: 'Educación' },
-  { key: 'otros', label: 'Otros' },
-];
-
-const EXTRA_CATS_INGRESO = [
-  { key: 'salario', label: 'Salario' },
-  { key: 'bonos', label: 'Bonos' },
-  { key: 'comisiones', label: 'Comisión' },
-  { key: 'dividendos', label: 'Dividendos' },
-  { key: 'hogar', label: 'Hogar' },
-  { key: 'comida', label: 'Comida' },
-  { key: 'transporte', label: 'Transporte' },
-  { key: 'creditos', label: 'Créditos' },
-  { key: 'entretenimiento', label: 'Entretenimiento' },
-  { key: 'familia', label: 'Familia' },
-  { key: 'ahorro', label: 'Ahorro' },
-  { key: 'otros', label: 'Otros' },
-];
-
-const EDIT_CATEGORIAS = MASTER_CATEGORIES;
-
-// ─── Hook: count-up animado (easeOutCubic) ────────────────────────────────────
-function useCountUp(target, triggerKey, duration = 850) {
-  const [val, setVal] = useState(0);
-  const frameRef = useRef(null);
-  const targetRef = useRef(target);
-  targetRef.current = target;
-
-  useEffect(() => {
-    if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    const t0 = targetRef.current;
-    if (!t0) { setVal(0); return; }
-    setVal(0);
-    const startTime = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - startTime;
-      if (elapsed >= duration) { setVal(t0); return; }
-      const progress = elapsed / duration;
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setVal(Math.round(t0 * eased));
-      frameRef.current = requestAnimationFrame(tick);
-    };
-    frameRef.current = requestAnimationFrame(tick);
-    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
-  }, [triggerKey, duration]);
-
-  return val;
-}
-
-// ─── StatCard: barra de acento + label uppercase + numero grande ──────────────
-function StatCard({ label, value, sub, accentColor, half, animVal }) {
-  const { colors: C } = useTheme();
-  const animStyle = animVal ? {
-    opacity: animVal,
-    transform: [{ translateY: animVal.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
-  } : {};
-  return (
-    <Animated.View style={[
-      { backgroundColor: C.card, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: C.border, marginBottom: 10 },
-      half && { flex: 1 },
-      animStyle,
-    ]}>
-      <View style={{ height: 3, backgroundColor: accentColor }} />
-      <View style={{ padding: 14 }}>
-        <Text style={{ fontSize: 10, color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700', marginBottom: 8 }}>
-          {label}
-        </Text>
-        <Text
-          style={{ fontSize: 20, fontWeight: '800', color: accentColor, letterSpacing: -0.5 }}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.7}
-        >
-          {value}
-        </Text>
-        {sub ? (
-          <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 5 }}>{sub}</Text>
-        ) : null}
-      </View>
-    </Animated.View>
-  );
-}
-
-// ─── ChartCard: barra de acento + titulo uppercase ────────────────────────────
-function ChartCard({ title, accentColor, animVal, children }) {
-  const { colors: C } = useTheme();
-  const animStyle = animVal ? {
-    opacity: animVal,
-    transform: [{ translateY: animVal.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
-  } : {};
-  return (
-    <Animated.View style={[
-      { backgroundColor: C.card, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: C.border, marginBottom: 12 },
-      animStyle,
-    ]}>
-      <View style={{ height: 3, backgroundColor: accentColor }} />
-      <View style={{ padding: 16 }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 14 }}>
-          {title}
-        </Text>
-        {children}
-      </View>
-    </Animated.View>
-  );
-}
 
 // ─── EmptyState con icono + texto descriptivo ─────────────────────────────────
 function EmptyState({ icon, text }) {
@@ -202,246 +85,6 @@ function RecentTxRow({ tx, onPress, onLongPress }) {
   );
 }
 
-// ─── ExtraFABModal: bottom sheet para registrar gasto o ingreso extraordinario ─
-function ExtraFABModal({ visible, onClose, onSuccess }) {
-  const { colors: C } = useTheme();
-  const [tipo, setTipo] = useState('gasto');
-  const [descripcion, setDescripcion] = useState('');
-  const [monto, setMonto] = useState('');
-  const [categoria, setCategoria] = useState('otros');
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const cats = tipo === 'ingreso' ? EXTRA_CATS_INGRESO : EXTRA_CATS_GASTO;
-  const accentColor = tipo === 'ingreso' ? C.teal : C.pink;
-
-  const reset = () => {
-    setTipo('gasto');
-    setDescripcion('');
-    setMonto('');
-    setCategoria('otros');
-    setError('');
-    setIsSubmitting(false);
-  };
-
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
-  const handleTipoChange = (t) => {
-    setTipo(t);
-    setCategoria(t === 'ingreso' ? 'salario' : 'otros');
-    setError('');
-  };
-
-  const handleSubmit = async () => {
-    Keyboard.dismiss();
-    if (isSubmitting) return;
-    const montoNum = parseFloat(String(monto).replace(/[^0-9.]/g, ''));
-    if (!descripcion.trim()) { setError('Ingresa una descripción'); return; }
-    if (!montoNum || montoNum <= 0) { setError('Ingresa un monto válido'); return; }
-    setError('');
-    setIsSubmitting(true);
-    try {
-      await registrarExtraordinario({
-        descripcion: descripcion.trim(),
-        monto: montoNum,
-        categoria,
-        tipo,
-      });
-      reset();
-      onSuccess();
-    } catch (e) {
-      setError(e.message || 'Error al guardar');
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}
-          activeOpacity={1}
-          onPress={handleClose}
-        />
-        <View style={{
-          backgroundColor: C.card,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          padding: 24,
-          paddingBottom: 36,
-          borderTopWidth: 1,
-          borderColor: C.border,
-        }}>
-          {/* Header */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>
-                Transacción extraordinaria
-              </Text>
-              <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
-                Registra algo fuera de tu presupuesto
-              </Text>
-            </View>
-            <TouchableOpacity onPress={handleClose} style={{ paddingLeft: 12, paddingBottom: 4 }}>
-              <Text style={{ fontSize: 22, color: C.textMuted, lineHeight: 24 }}>x</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ height: 1, backgroundColor: C.border, marginVertical: 16 }} />
-
-          {/* Tipo toggle */}
-          <View style={{ flexDirection: 'row', backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.border, marginBottom: 16, overflow: 'hidden' }}>
-            {[{ key: 'gasto', label: 'Gasto', color: C.pink }, { key: 'ingreso', label: 'Ingreso', color: C.teal }].map(opt => (
-              <TouchableOpacity
-                key={opt.key}
-                onPress={() => handleTipoChange(opt.key)}
-                disabled={isSubmitting}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  alignItems: 'center',
-                  backgroundColor: tipo === opt.key ? opt.color : 'transparent',
-                }}
-              >
-                <Text style={{ fontSize: 13, fontWeight: '700', color: tipo === opt.key ? '#fff' : C.textMuted }}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Descripcion */}
-          <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
-            Descripción
-          </Text>
-          <TextInput
-            style={{
-              backgroundColor: C.bg,
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: C.border,
-              color: C.text,
-              fontSize: 14,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              marginBottom: 14,
-            }}
-            placeholder={tipo === 'ingreso' ? 'Ej. Freelance, Venta, Regalo...' : 'Ej. Médico, Reparación, Regalo...'}
-            placeholderTextColor={C.textMuted}
-            value={descripcion}
-            onChangeText={setDescripcion}
-            blurOnSubmit={true}
-            returnKeyType="done"
-            onSubmitEditing={Keyboard.dismiss}
-            editable={!isSubmitting}
-          />
-
-          {/* Monto */}
-          <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
-            Monto
-          </Text>
-          <TextInput
-            style={{
-              backgroundColor: C.bg,
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: C.border,
-              color: C.text,
-              fontSize: 14,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              marginBottom: 4,
-            }}
-            placeholder="0"
-            placeholderTextColor={C.textMuted}
-            value={monto}
-            onChangeText={setMonto}
-            keyboardType="numeric"
-            blurOnSubmit={true}
-            returnKeyType="done"
-            onSubmitEditing={Keyboard.dismiss}
-            editable={!isSubmitting}
-          />
-          {monto ? (
-            <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
-              = {formatCOP(parseFloat(String(monto).replace(/[^0-9.]/g, '')) || 0)}
-            </Text>
-          ) : (
-            <View style={{ marginBottom: 14 }} />
-          )}
-
-          {/* Categoria */}
-          <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 8 }}>
-            Categoría
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-            {cats.map(cat => (
-              <TouchableOpacity
-                key={cat.key}
-                onPress={() => setCategoria(cat.key)}
-                disabled={isSubmitting}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 20,
-                  backgroundColor: categoria === cat.key ? accentColor : C.bg,
-                  borderWidth: 1,
-                  borderColor: categoria === cat.key ? accentColor : C.border,
-                }}
-              >
-                <Text style={{
-                  fontSize: 12,
-                  fontWeight: '600',
-                  color: categoria === cat.key ? '#fff' : C.textMuted,
-                }}>
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Error */}
-          {error ? (
-            <Text style={{ color: C.pink, fontSize: 12, marginBottom: 12 }}>{error}</Text>
-          ) : null}
-
-          {/* Boton guardar */}
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-            style={{
-              backgroundColor: accentColor,
-              borderRadius: 12,
-              paddingVertical: 14,
-              alignItems: 'center',
-              opacity: isSubmitting ? 0.7 : 1,
-            }}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.3 }}>
-                {tipo === 'ingreso' ? 'Guardar ingreso' : 'Guardar gasto'}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 export default function DashboardScreen() {
   const [totals, setTotals] = useState(null);
@@ -452,13 +95,8 @@ export default function DashboardScreen() {
   const [fabVisible, setFabVisible] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('idle'); // 'idle' | 'synced' | 'error'
   const [editingTransaction, setEditingTransaction] = useState(null);
-  const [editMonto, setEditMonto] = useState('');
-  const [editDescripcion, setEditDescripcion] = useState('');
-  const [editCategoria, setEditCategoria] = useState('');
-  const [editSubmitting, setEditSubmitting] = useState(false);
   const { colors: C } = useTheme();
 
-  // 9 animated values: 4 stat cards + fondo card + 3 chart cards + extraordinary card
   const cardAnims = useRef([...Array(9)].map(() => new Animated.Value(0))).current;
 
   const reload = useCallback(async () => {
@@ -502,48 +140,11 @@ export default function DashboardScreen() {
   const abrirEdicion = useCallback((tx) => {
     if (!tx) return;
     setEditingTransaction(tx);
-    setEditMonto(String(tx.monto ?? ''));
-    setEditDescripcion(tx.descripcion ?? '');
-    setEditCategoria(normalizeCategoria(tx.categoria));
   }, []);
 
   const cerrarEdicion = useCallback(() => {
     setEditingTransaction(null);
-    setEditMonto('');
-    setEditDescripcion('');
-    setEditCategoria('');
-    setEditSubmitting(false);
   }, []);
-
-  const actualizarTransaccion = useCallback(async () => {
-    if (!editingTransaction) return;
-    if (editSubmitting) return;
-    Keyboard.dismiss();
-    const montoNum = parseFloat(String(editMonto).replace(/[^0-9.]/g, ''));
-    if (!montoNum || montoNum <= 0) {
-      Alert.alert('Monto inválido', 'Ingresa un monto válido.');
-      return;
-    }
-    const categoriaFinal = MASTER_CATEGORIES.includes(editCategoria) ? editCategoria : 'Otros';
-    setEditSubmitting(true);
-    try {
-      if (!supabase) throw new Error('Sin conexión a Supabase');
-      const { error } = await supabase
-        .from('transacciones')
-        .update({
-          monto: montoNum,
-          descripcion: editDescripcion.trim(),
-          categoria: categoriaFinal,
-        })
-        .eq('id', editingTransaction.id);
-      if (error) throw error;
-      await reload();
-      cerrarEdicion();
-    } catch (e) {
-      setEditSubmitting(false);
-      Alert.alert('Error', e?.message || 'No se pudo actualizar el movimiento.');
-    }
-  }, [editingTransaction, editMonto, editDescripcion, editCategoria, editSubmitting, reload, cerrarEdicion]);
 
   const eliminarTransaccion = useCallback(async (id) => {
     if (!id) return;
@@ -663,7 +264,6 @@ export default function DashboardScreen() {
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ── */}
         <View style={s.header}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={s.title}>Dashboard</Text>
@@ -679,19 +279,16 @@ export default function DashboardScreen() {
           <View style={[s.headerDivider, { backgroundColor: C.border }]} />
         </View>
 
-        {/* ── Fila 1: Ingresos + Gastos ── */}
         <View style={s.row}>
           <StatCard label="Ingresos Mensuales" value={formatCOP(animIngresos)} sub={formatCOP(totals.ingresosAnual) + ' al año'} accentColor={C.teal} animVal={cardAnims[0]} half />
           <StatCard label="Gastos Mensuales" value={formatCOP(animGastos)} sub={formatCOP(totals.totalGastosAnual) + ' al año'} accentColor={C.pink} animVal={cardAnims[1]} half />
         </View>
 
-        {/* ── Fila 2: Flujos ── */}
         <View style={s.row}>
           <StatCard label="Flujo de Caja" value={formatCOP(animFlujo)} sub={formatCOP(totals.flujoCajaAnual) + ' al año'} accentColor={flujoCajaColor} animVal={cardAnims[2]} half />
           <StatCard label="Con Ahorro" value={formatCOP(animFlujoAhorro)} sub={formatCOP(totals.flujoCajaConAhorroAnual) + ' al año'} accentColor={flujoAhorroColor} animVal={cardAnims[3]} half />
         </View>
 
-        {/* ── Fondo de Emergencia ── */}
         <Animated.View style={[s.fondoCard, { backgroundColor: C.card, borderColor: C.border }, {
           opacity: cardAnims[4],
           transform: [{ translateY: cardAnims[4].interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
@@ -711,7 +308,6 @@ export default function DashboardScreen() {
           </View>
         </Animated.View>
 
-        {/* ── Extraordinarios (gastos e ingresos, solo si hay) ── */}
         {hasExtras && (
           <Animated.View style={[
             { backgroundColor: C.card, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: C.border, marginBottom: 12 },
@@ -726,7 +322,6 @@ export default function DashboardScreen() {
                 Extraordinarios del mes
               </Text>
 
-              {/* Gastos extraordinarios */}
               {extraordinarios.length > 0 && (
                 <>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -759,7 +354,6 @@ export default function DashboardScreen() {
                 </>
               )}
 
-              {/* Ingresos extraordinarios */}
               {extrasIngreso.length > 0 && (
                 <>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, marginTop: extraordinarios.length > 0 ? 14 : 0 }}>
@@ -795,7 +389,6 @@ export default function DashboardScreen() {
           </Animated.View>
         )}
 
-        {/* ── Transacciones recientes ── */}
         {recentTxs.length > 0 && (
           <View style={{ backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, overflow: 'hidden', marginBottom: 12 }}>
             <View style={{ height: 3, backgroundColor: C.teal }} />
@@ -818,7 +411,6 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* ── Graficas ── */}
         <ChartCard title="Distribución de Gastos" accentColor={C.pink} animVal={cardAnims[5]}>
           {gastosChartData.length > 0 ? (
             <PieChart data={gastosChartData} width={chartWidth} height={200} chartConfig={chartCfg} accessor="population" backgroundColor="transparent" paddingLeft="15" absolute={false} />
@@ -839,162 +431,12 @@ export default function DashboardScreen() {
 
       </ScrollView>
 
-      {/* ── Modal editar transacción ── */}
-      <Modal
-        visible={!!editingTransaction}
-        transparent
-        animationType="slide"
-        onRequestClose={cerrarEdicion}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <TouchableOpacity
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}
-            activeOpacity={1}
-            onPress={cerrarEdicion}
-          />
-          <View style={{
-            backgroundColor: C.card,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            padding: 24,
-            paddingBottom: 36,
-            borderTopWidth: 1,
-            borderColor: C.border,
-          }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>
-                  Editar movimiento
-                </Text>
-                <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
-                  Actualiza monto, descripción y categoría
-                </Text>
-              </View>
-              <TouchableOpacity onPress={cerrarEdicion} style={{ paddingLeft: 12, paddingBottom: 4 }}>
-                <Text style={{ fontSize: 22, color: C.textMuted, lineHeight: 24 }}>x</Text>
-              </TouchableOpacity>
-            </View>
+      <EditTransaccionModal
+        transaction={editingTransaction}
+        onClose={cerrarEdicion}
+        onUpdated={reload}
+      />
 
-            <View style={{ height: 1, backgroundColor: C.border, marginVertical: 16 }} />
-
-            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
-              Descripción
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: C.bg,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: C.border,
-                color: C.text,
-                fontSize: 14,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                marginBottom: 14,
-              }}
-              placeholder="Descripción"
-              placeholderTextColor={C.textMuted}
-              value={editDescripcion}
-              onChangeText={setEditDescripcion}
-              blurOnSubmit={true}
-              returnKeyType="done"
-              onSubmitEditing={Keyboard.dismiss}
-              editable={!editSubmitting}
-            />
-
-            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 8 }}>
-              Categoría
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-              {EDIT_CATEGORIAS.map(cat => {
-                const selected = editCategoria === cat;
-                const chipColor = CATEGORY_COLORS[cat] || C.teal;
-                return (
-                  <TouchableOpacity
-                    key={cat}
-                    onPress={() => setEditCategoria(cat)}
-                    disabled={editSubmitting}
-                    style={{
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 20,
-                      backgroundColor: selected ? chipColor : C.bg,
-                      borderWidth: 1,
-                      borderColor: selected ? chipColor : C.border,
-                    }}
-                  >
-                    <Text style={{
-                      fontSize: 12,
-                      fontWeight: '600',
-                      color: selected ? '#fff' : C.textMuted,
-                    }}>
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
-              Monto
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: C.bg,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: C.border,
-                color: C.text,
-                fontSize: 14,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                marginBottom: 4,
-              }}
-              placeholder="0"
-              placeholderTextColor={C.textMuted}
-              value={editMonto}
-              onChangeText={setEditMonto}
-              keyboardType="numeric"
-              blurOnSubmit={true}
-              returnKeyType="done"
-              onSubmitEditing={Keyboard.dismiss}
-              editable={!editSubmitting}
-            />
-            {editMonto ? (
-              <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
-                = {formatCOP(parseFloat(String(editMonto).replace(/[^0-9.]/g, '')) || 0)}
-              </Text>
-            ) : (
-              <View style={{ marginBottom: 14 }} />
-            )}
-
-            <TouchableOpacity
-              onPress={actualizarTransaccion}
-              disabled={editSubmitting}
-              style={{
-                backgroundColor: C.teal,
-                borderRadius: 12,
-                paddingVertical: 14,
-                alignItems: 'center',
-                opacity: editSubmitting ? 0.7 : 1,
-              }}
-            >
-              {editSubmitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.3 }}>
-                  Guardar cambios
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ── FAB ── */}
       <TouchableOpacity
         onPress={() => setFabVisible(true)}
         style={{
@@ -1017,7 +459,6 @@ export default function DashboardScreen() {
         <Text style={{ color: '#fff', fontSize: 28, fontWeight: '300', lineHeight: 32, marginTop: -2 }}>+</Text>
       </TouchableOpacity>
 
-      {/* ── Modal extraordinario ── */}
       <ExtraFABModal
         visible={fabVisible}
         onClose={() => setFabVisible(false)}
