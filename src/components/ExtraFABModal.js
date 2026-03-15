@@ -13,32 +13,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { registrarExtraordinario } from '../utils/storage';
 import { formatCOP } from '../utils/calculations';
-
-const EXTRA_CATS_GASTO = [
-  { key: 'hogar', label: 'Hogar' },
-  { key: 'comida', label: 'Comida' },
-  { key: 'transporte', label: 'Transporte' },
-  { key: 'salud', label: 'Salud' },
-  { key: 'entretenimiento', label: 'Entretenimiento' },
-  { key: 'familia', label: 'Familia' },
-  { key: 'educacion', label: 'Educación' },
-  { key: 'otros', label: 'Otros' },
-];
-
-const EXTRA_CATS_INGRESO = [
-  { key: 'salario', label: 'Salario' },
-  { key: 'bonos', label: 'Bonos' },
-  { key: 'comisiones', label: 'Comisión' },
-  { key: 'dividendos', label: 'Dividendos' },
-  { key: 'hogar', label: 'Hogar' },
-  { key: 'comida', label: 'Comida' },
-  { key: 'transporte', label: 'Transporte' },
-  { key: 'creditos', label: 'Créditos' },
-  { key: 'entretenimiento', label: 'Entretenimiento' },
-  { key: 'familia', label: 'Familia' },
-  { key: 'ahorro', label: 'Ahorro' },
-  { key: 'otros', label: 'Otros' },
-];
+import { FAB_CATS_GASTO, FAB_CATS_INGRESO } from '../utils/categoryTheme';
 
 export default function ExtraFABModal({ visible, onClose, onSuccess }) {
   const { colors: C } = useTheme();
@@ -49,7 +24,7 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const cats = tipo === 'ingreso' ? EXTRA_CATS_INGRESO : EXTRA_CATS_GASTO;
+  const cats = tipo === 'ingreso' ? FAB_CATS_INGRESO : FAB_CATS_GASTO;
   const accentColor = tipo === 'ingreso' ? C.teal : C.pink;
 
   const reset = () => {

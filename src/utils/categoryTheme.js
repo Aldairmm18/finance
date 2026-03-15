@@ -146,3 +146,32 @@ export function getCategoryIcon(value, fallback = DEFAULT_CATEGORY_ICON) {
   const master = normalizeCategoria(value);
   return CATEGORY_ICONS[master] || fallback;
 }
+
+// Categorías para el modal de gastos extraordinarios
+export const FAB_CATS_GASTO = [
+  { key: 'hogar', label: 'Hogar' },
+  { key: 'comida', label: 'Comida' },
+  { key: 'transporte', label: 'Transporte' },
+  { key: 'salud', label: 'Salud' },
+  { key: 'entretenimiento', label: 'Entretenimiento' },
+  { key: 'familia', label: 'Familia' },
+  { key: 'educacion', label: 'Educación' },
+  { key: 'creditos', label: 'Créditos' },
+  { key: 'otros', label: 'Otros' },
+];
+
+// Categorías para el modal de ingresos extraordinarios
+export const FAB_CATS_INGRESO = [
+  { key: 'salario', label: 'Salario' },
+  { key: 'bonos', label: 'Bonos' },
+  { key: 'comisiones', label: 'Comisión' },
+  { key: 'dividendos', label: 'Dividendos' },
+  { key: 'hogar', label: 'Hogar' },
+  { key: 'comida', label: 'Comida' },
+  { key: 'transporte', label: 'Transporte' },
+  { key: 'creditos', label: 'Créditos' },
+  { key: 'entretenimiento', label: 'Entretenimiento' },
+  { key: 'familia', label: 'Familia' },
+  { key: 'ahorro', label: 'Ahorro' },
+  { key: 'otros', label: 'Otros' },
+];
