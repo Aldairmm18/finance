@@ -21,14 +21,14 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.aldairmurillo.finance"
+      "package": "com.aldairmm24.finance"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
       "eas": {
-        "projectId": "4919ad58-0d27-4774-9f90-b7c20bec184f"
+        "projectId": "6a8c920b-bd72-4d42-a335-d3cbc976a831"
       }
     }
   }

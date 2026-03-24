@@ -100,6 +100,17 @@ const EXPENSE_CATEGORIES = [
       { key: 'otros', label: 'Otros' },
     ],
   },
+  // ── MEJORA 3: Nueva categoría Salud ──────────────────────────────────────────
+  {
+    key: 'salud', label: 'Salud', iconName: 'heart',
+    items: [
+      { key: 'medicamentos', label: 'Medicamentos' },
+      { key: 'consultas', label: 'Consultas médicas' },
+      { key: 'examenes', label: 'Exámenes / Labs' },
+      { key: 'optica', label: 'Óptica' },
+      { key: 'otro', label: 'Otro' },
+    ],
+  },
 ];
 
 // ─── PeriodicidadModal ────────────────────────────────────────────────────────
@@ -117,7 +128,7 @@ function PeriodicidadModal({ visible, current, onSelect, onClose }) {
           <Text style={{ color: C.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', textAlign: 'center', paddingVertical: 14, paddingHorizontal: 16 }}>
             Periodicidad
           </Text>
-          {PERIODICIDADES.map((p, i) => (
+          {PERIODICIDADES.map((p) => (
             <TouchableOpacity
               key={p.value}
               style={[
@@ -377,7 +388,7 @@ function SectionHeader({ iconName, iconColor, label, total, expanded, onPress })
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: C.card,
-        borderRadius: expanded ? 12 : 12,
+        borderRadius: 12,
         borderBottomLeftRadius: expanded ? 0 : 12,
         borderBottomRightRadius: expanded ? 0 : 12,
         paddingHorizontal: 16,
@@ -406,13 +417,13 @@ function SectionHeader({ iconName, iconColor, label, total, expanded, onPress })
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
-/** Utilidades de navegación de meses */
 function mesLabel(mes) {
   const [y, m] = mes.split('-');
   const d = new Date(Number(y), Number(m) - 1, 1);
   const str = d.toLocaleString('es-CO', { month: 'long', year: 'numeric' });
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
 function addMes(mes, delta) {
   const [y, m] = mes.split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
@@ -423,7 +434,7 @@ export default function PresupuestoScreen() {
   const [mes, setMes] = useState(getCurrentMes);
   const [data, setData] = useState(null);
   const [expanded, setExpanded] = useState({ ingresos: true });
-  const [periodModal, setPeriodModal] = useState({ visible: false, current: 'mensual', onSelect: () => { } });
+  const [periodModal, setPeriodModal] = useState({ visible: false, current: 'mensual', onSelect: () => {} });
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const [rollover, setRollover] = useState({ surplus: 0, prevMes: '' });
   const [rolloverDismissed, setRolloverDismissed] = useState(false);
@@ -438,12 +449,10 @@ export default function PresupuestoScreen() {
     setRolloverDismissed(false);
     loadDataMes(mes).then(d => {
       setData(d);
-      // Check if rollover already applied for this month
       if (d?.rolloverAplicado?.[mes]) {
         setRollover({ surplus: 0, prevMes: '' });
       }
     });
-    // Load rollover from previous month
     computeRollover(mes).then(r => setRollover(r)).catch(() => {});
   }, [mes]));
 
@@ -484,7 +493,7 @@ export default function PresupuestoScreen() {
     setData(prev => {
       const next = {
         ...prev,
-        gastos: { ...prev.gastos, [catKey]: { ...prev.gastos[catKey], [itemKey]: { ...prev.gastos[catKey][itemKey], [field]: value } } },
+        gastos: { ...prev.gastos, [catKey]: { ...prev.gastos[catKey], [itemKey]: { ...prev.gastos[catKey]?.[itemKey], [field]: value } } },
       };
       debouncedSave(next);
       return next;
@@ -508,7 +517,7 @@ export default function PresupuestoScreen() {
   }
 
   const ingresosTotal = INCOME_ITEMS.reduce((sum, { key }) =>
-    sum + toMonthly(data.ingresos[key].monto, data.ingresos[key].periodicidad), 0);
+    sum + toMonthly(data.ingresos[key]?.monto, data.ingresos[key]?.periodicidad), 0);
 
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -604,9 +613,9 @@ export default function PresupuestoScreen() {
               <IncomeRow
                 key={key}
                 label={label}
-                item={data.ingresos[key]}
+                item={data.ingresos[key] ?? { monto: '', periodicidad: 'mensual' }}
                 onChangeMonto={v => updateIngreso(key, 'monto', v.replace(/[^0-9]/g, ''))}
-                onOpenPeriod={() => openPeriodModal(data.ingresos[key].periodicidad, v => updateIngreso(key, 'periodicidad', v))}
+                onOpenPeriod={() => openPeriodModal(data.ingresos[key]?.periodicidad ?? 'mensual', v => updateIngreso(key, 'periodicidad', v))}
               />
             ))}
           </View>

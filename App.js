@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -7,10 +7,27 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import TabNavigator from './src/navigation/TabNavigator';
 import AuthScreen from './src/screens/AuthScreen';
+import { notificationService } from './src/services/notificationService';
+import { recurringPaymentService } from './src/services/recurringPaymentService';
 
 function Root() {
   const { mode, colors: C } = useTheme();
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const granted = await notificationService.requestPermissions();
+        if (granted) {
+          const payments = await recurringPaymentService.getAll(user.id);
+          await notificationService.rescheduleAll(payments);
+        }
+      } catch (e) {
+        console.warn('Error inicializando notificaciones:', e?.message);
+      }
+    })();
+  }, [user]);
 
   if (loading) {
     return (
