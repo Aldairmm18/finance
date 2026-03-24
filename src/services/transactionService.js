@@ -22,7 +22,7 @@ export async function createRecurringIncome(userId, baseTransaction, recurrenceM
   }
 
   const { data, error } = await supabase
-    .from('transactions')
+    .from('transacciones')
     .insert(transactions)
     .select();
 
@@ -35,7 +35,7 @@ export async function createRecurringIncome(userId, baseTransaction, recurrenceM
  */
 export async function updateSingleTransaction(id, payload) {
   const { data, error } = await supabase
-    .from('transactions')
+    .from('transacciones')
     .update(payload)
     .eq('id', id)
     .select()
@@ -52,7 +52,7 @@ export async function updateSingleTransaction(id, payload) {
  */
 export async function updateFutureTransactions(groupId, fromDate, payload) {
   const { data, error } = await supabase
-    .from('transactions')
+    .from('transacciones')
     .update(payload)
     .eq('recurrence_group_id', groupId)
     .gte('date', fromDate)
