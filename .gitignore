@@ -32,7 +32,11 @@ yarn-error.*
 
 # local env files
 .env
-.env.*
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
 .env*.local
 
 # typescript
@@ -41,3 +45,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Prompts y contexto interno
+prompt*.md
+prompt*.txt
+contexto-*.md
+*.prompt
