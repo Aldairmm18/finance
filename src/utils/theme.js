@@ -1,28 +1,55 @@
-// Paleta oscura (original)
+// ─── Paleta extraída del board de Mixboard (Google Labs) ─────────────────────
+// Dark mode: navy profundo + teal vibrante + rosa salmon + purple savings
+// Light mode: off-white cálido + mismos acentos con mayor contraste
+
+// Dark mode — basado en "Dark Mode Color Palette" + "Dark Mode Home Screen Layout"
 export const DARK = {
-  bg: '#0a0a1a',
-  card: '#12122a',
-  border: '#2a2a4a',
-  teal: '#2dd4bf',
-  pink: '#f472b6',
-  purple: '#818cf8',
-  amber: '#f59e0b',
-  text: '#e2e8f0',
-  textMuted: '#94a3b8',
-  inputBg: '#1a1a2e',
+  // Fondos
+  bg:      '#0D1117',   // navy profundo (más rico que el #0a0a1a anterior)
+  card:    '#161B27',   // card surface — "Card / Surface" del board
+  inputBg: '#1C2333',   // input ligeramente más claro que card
+
+  // Bordes
+  border: '#242E42',    // borde sutil en navy
+
+  // Acentos principales — del board "Dark Mode Color Palette"
+  teal:   '#14B8A6',    // Primary UI / Income (exacto del board)
+  pink:   '#E88C99',    // Expenses / Negative (salmon del board)
+  purple: '#9333EA',    // Savings / Positive (purple del board)
+  amber:  '#F59E0B',    // warnings — sin cambio
+
+  // Texto
+  text:      '#E8EDF5', // blanco cálido con toque navy
+  textMuted: '#6B7A99', // muted azul-gris
+
+  // Chart extras
+  chartTeal:   '#14B8A6',
+  chartPink:   '#E88C99',
+  chartPurple: '#6B21C8', // purple más oscuro para áreas
 };
 
-// Paleta clara — diseño premium, no genérico
-// Azul-gris frío como base, acentos saturados pero elegantes
+// Light mode — basado en "Light Mode Color Palette" (hex exactos del board)
 export const LIGHT = {
-  bg: '#f0f4f8',
-  card: '#ffffff',
-  border: '#dde5f0',
-  teal: '#0d9488',
-  pink: '#db2777',
-  purple: '#6366f1',
-  amber: '#d97706',
-  text: '#0f172a',
-  textMuted: '#64748b',
-  inputBg: '#f8fafc',
+  // Fondos
+  bg:      '#F5F5F6',   // off-white cálido del board
+  card:    '#FFFFFF',   // blanco puro
+  inputBg: '#F0F2F5',   // input ligeramente gris
+
+  // Bordes
+  border: '#E2E8F0',
+
+  // Acentos — del board "Light Mode Color Palette"
+  teal:   '#14B3A8',    // Primary Accent / Income (#14B3A8 del board)
+  pink:   '#E07A85',    // Expenses / Secondary Accent (salmon oscuro del board)
+  purple: '#9333EA',    // Savings / Tertiary Accent (#9333EA exacto del board)
+  amber:  '#D97706',    // warnings
+
+  // Texto — del board "Light Mode Color Palette"
+  text:      '#333B3B', // Text / Icons (dark slate del board)
+  textMuted: '#9CA3AF', // Subtle Text (#9CA3AF exacto del board)
+
+  // Chart extras
+  chartTeal:   '#14B3A8',
+  chartPink:   '#E07A85',
+  chartPurple: '#7C3AED',
 };
