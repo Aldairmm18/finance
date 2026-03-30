@@ -84,7 +84,7 @@ export default function SubcategoryModal({ visible, onClose, onSave, categoryKey
         category_key: categoryKey,
         duration_months: durationMonths ? parseInt(durationMonths, 10) : null,
       });
-      onClose();
+      // El padre maneja el cierre desde onSave — no llamar onClose() aquí
     } catch (e) {
       Alert.alert('Error', e?.message || 'No se pudo guardar la subcategoría.');
       setIsSaving(false);

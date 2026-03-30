@@ -20,6 +20,7 @@ import { loadDataMes, getCurrentMes, loadTransaccionesMes, loadTransaccionesAnio
 import { computeTotals, mergeTransacciones, formatCOP, toMonthly } from '../utils/calculations';
 import { getCategoryColor, getCategoryIcon } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
+import { mesLabel } from '../utils/dateUtils';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
 
@@ -43,13 +44,6 @@ const TIPO_LABELS = {
   otro: 'Otro',
   otros: 'Otros',
 };
-
-function mesLabel(mes) {
-  const [y, m] = mes.split('-');
-  const d = new Date(Number(y), Number(m) - 1, 1);
-  const str = d.toLocaleString('es-CO', { month: 'long', year: 'numeric' });
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
 
 // ─── ProgressBar ─────────────────────────────────────────────────────────────
 
@@ -187,13 +181,14 @@ export default function ResumenMesScreen() {
   const mes = getCurrentMes();
 
   // ── Load monthly data ──
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (isMounted) => {
     cardAnims.forEach(a => a.setValue(0));
     try {
       const [d, transactions] = await Promise.all([
         loadDataMes(mes),
         loadTransaccionesMes(mes),
       ]);
+      if (!isMounted?.current) return;
       const base = computeTotals(d);
       const merged = mergeTransacciones(base, transactions);
       setPlanned(base);
@@ -204,20 +199,22 @@ export default function ResumenMesScreen() {
         Animated.timing(a, { toValue: 1, duration: 380, useNativeDriver: true })
       )).start();
     } catch {
+      if (!isMounted?.current) return;
       setCloudStatus('error');
     }
   }, []);
 
-  // ── Load annual data ──
-  const loadAnio = useCallback(async (year) => {
+  const loadAnio = useCallback(async (year, isMounted) => {
     setAnioLoading(true);
     try {
       const data = await loadTransaccionesAnio(year);
+      if (!isMounted?.current) return;
       setAnioTxs(data || []);
     } catch {
+      if (!isMounted?.current) return;
       setAnioTxs([]);
     } finally {
-      setAnioLoading(false);
+      if (isMounted?.current) setAnioLoading(false);
     }
   }, []);
 
@@ -320,8 +317,10 @@ export default function ResumenMesScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => {
-    if (viewMode === 'mes') loadAll();
-    else loadAnio(anioSelected);
+    const isMounted = { current: true };
+    if (viewMode === 'mes') loadAll(isMounted);
+    else loadAnio(anioSelected, isMounted);
+    return () => { isMounted.current = false; };
   }, [loadAll, loadAnio, viewMode, anioSelected]));
 
   const onRefresh = useCallback(async () => {

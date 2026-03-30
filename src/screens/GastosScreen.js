@@ -22,6 +22,7 @@ import { loadTransaccionesMes, getCurrentMes } from '../utils/storage';
 import { formatCOP } from '../utils/calculations';
 import { getCategoryColor, getCategoryIcon } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
+import { mesLabel, addMes } from '../utils/dateUtils';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { supabase } from '../services/supabase';
 
@@ -42,20 +43,7 @@ const CAT_LABELS = {
 function catLabel(k) { return CAT_LABELS[k] || (k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Otro'); }
 function catColor(k) { return getCategoryColor(k); }
 
-function mesLabel(mes) {
-  const [y, m] = mes.split('-');
-  const d = new Date(Number(y), Number(m) - 1, 1);
-  const str = d.toLocaleString('es-CO', { month: 'long', year: 'numeric' });
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-function addMes(mes, delta) {
-  const [y, m] = mes.split('-').map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
 // ─── TxRow ────────────────────────────────────────────────────────────────────
-
 function TxRow({ tx, animVal, onLongPress, onPress }) {
   const { colors: C } = useTheme();
   const isIngreso = tx.tipo === 'ingreso';
@@ -119,18 +107,20 @@ export default function GastosScreen() {
 
   const currentMes = getCurrentMes();
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (isMounted) => {
     listAnims.forEach(a => a.setValue(0));
     try {
       const data = await loadTransaccionesMes(mes);
+      if (!isMounted?.current) return;
       setTxs(data || []);
       Animated.stagger(30, listAnims.slice(0, Math.min((data || []).length, 30)).map(a =>
         Animated.timing(a, { toValue: 1, duration: 280, useNativeDriver: true })
       )).start();
     } catch {
+      if (!isMounted?.current) return;
       setTxs([]);
     } finally {
-      setLoading(false);
+      if (isMounted?.current) setLoading(false);
     }
   }, [mes]);
 
@@ -208,9 +198,11 @@ export default function GastosScreen() {
   }, [editingTransaction, editMonto, editDescripcion, editSubmitting, cerrarEdicion]);
 
   useFocusEffect(useCallback(() => {
+    const isMounted = { current: true };
     setLoading(true);
     setTxs([]);
-    loadAll();
+    loadAll(isMounted);
+    return () => { isMounted.current = false; };
   }, [loadAll]));
 
   const onRefresh = useCallback(async () => {

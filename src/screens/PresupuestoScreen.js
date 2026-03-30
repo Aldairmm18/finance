@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { loadDataMes, saveDataMes, getCurrentMes, computeRollover } from '../utils/storage';
 import { PERIODICIDADES, formatCOP, toMonthly, toAnnual, parseAmount } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
+import { mesLabel, addMes } from '../utils/dateUtils';
 
 // Habilitar LayoutAnimation en Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -416,19 +417,6 @@ function SectionHeader({ iconName, iconColor, label, total, expanded, onPress })
 }
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
-
-function mesLabel(mes) {
-  const [y, m] = mes.split('-');
-  const d = new Date(Number(y), Number(m) - 1, 1);
-  const str = d.toLocaleString('es-CO', { month: 'long', year: 'numeric' });
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-function addMes(mes, delta) {
-  const [y, m] = mes.split('-').map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
 
 export default function PresupuestoScreen() {
   const [mes, setMes] = useState(getCurrentMes);

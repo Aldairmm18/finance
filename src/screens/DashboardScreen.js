@@ -99,12 +99,13 @@ export default function DashboardScreen() {
 
   const cardAnims = useRef([...Array(9)].map(() => new Animated.Value(0))).current;
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (isMounted) => {
     cardAnims.forEach(a => a.setValue(0));
     try {
       const mesActual = getCurrentMes();
       await aplicarTraspasoSobrante(mesActual);
       const [d, txs] = await Promise.all([loadDataMes(mesActual), loadTransaccionesMes()]);
+      if (!isMounted?.current) return;
       const base = computeTotals(d);
       setTotals(mergeTransacciones(base, txs));
       setTransaccionesMes(txs || []);
@@ -117,12 +118,15 @@ export default function DashboardScreen() {
         Animated.timing(a, { toValue: 1, duration: 420, useNativeDriver: true })
       )).start();
     } catch {
+      if (!isMounted?.current) return;
       setCloudStatus('error');
     }
   }, []);
 
   useFocusEffect(useCallback(() => {
-    reload();
+    const isMounted = { current: true };
+    reload(isMounted);
+    return () => { isMounted.current = false; };
   }, [reload]));
 
   const refreshExtras = useCallback(async () => {

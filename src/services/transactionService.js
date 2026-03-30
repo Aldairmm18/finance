@@ -9,13 +9,13 @@ export async function createRecurringIncome(userId, baseTransaction, recurrenceM
   const transactions = [];
 
   for (let i = 0; i < recurrenceMonths; i++) {
-    const date = new Date(baseTransaction.date);
+    const date = new Date(baseTransaction.fecha || baseTransaction.date);
     date.setMonth(date.getMonth() + i);
 
     transactions.push({
       ...baseTransaction,
       user_id: userId,
-      date: date.toISOString().split('T')[0],
+      fecha: date.toISOString().split('T')[0],  // columna correcta en Supabase
       recurrence_months: recurrenceMonths,
       recurrence_group_id: groupId,
     });

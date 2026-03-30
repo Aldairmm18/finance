@@ -130,10 +130,13 @@ export default function TranquilidadScreen() {
   const { colors: C } = useTheme();
 
   useFocusEffect(useCallback(() => {
+    let isMounted = true;
     loadData().then(d => {
+      if (!isMounted) return;
       setFullData(d);
       setFields(d.tranquilidad || { gastosMensualesDeseados: '', rentabilidadAnual: '7', patrimonioActual: '' });
     });
+    return () => { isMounted = false; };
   }, []));
 
   const styles = useMemo(() => makeStyles(C), [C]);

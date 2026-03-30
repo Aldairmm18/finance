@@ -34,6 +34,7 @@ export default function TabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        lazy: false,
         tabBarStyle: {
           backgroundColor: C.card,
           borderTopColor: C.border,

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
   Keyboard,
   ActivityIndicator,
@@ -78,7 +79,8 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
       onRequestClose={handleClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
         style={{ flex: 1 }}
       >
         <TouchableOpacity
@@ -86,6 +88,11 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
           activeOpacity={1}
           onPress={handleClose}
         />
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
         <View style={{
           backgroundColor: C.card,
           borderTopLeftRadius: 20,
@@ -153,7 +160,7 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
             placeholderTextColor={C.textMuted}
             value={descripcion}
             onChangeText={setDescripcion}
-            blurOnSubmit={true}
+            blurOnSubmit={false}
             returnKeyType="done"
             onSubmitEditing={Keyboard.dismiss}
             editable={!isSubmitting}
@@ -180,7 +187,7 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
             value={monto}
             onChangeText={setMonto}
             keyboardType="numeric"
-            blurOnSubmit={true}
+            blurOnSubmit={false}
             returnKeyType="done"
             onSubmitEditing={Keyboard.dismiss}
             editable={!isSubmitting}
@@ -249,6 +256,7 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
             )}
           </TouchableOpacity>
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );

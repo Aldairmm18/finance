@@ -280,22 +280,27 @@ export default function RecurringPaymentsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editData, setEditData] = useState(null);
 
-  const loadPayments = useCallback(async () => {
+  const loadPayments = useCallback(async (isMounted) => {
     if (!user) return;
     setLoading(true);
     try {
       const data = await recurringPaymentService.getAll(user.id);
+      if (!isMounted?.current) return;
       setPayments(data ?? []);
-      // Re-programar notificaciones con la lista actualizada
       await notificationService.rescheduleAll(data ?? []);
     } catch (e) {
+      if (!isMounted?.current) return;
       Alert.alert('Error', 'No se pudieron cargar los pagos recurrentes.');
     } finally {
-      setLoading(false);
+      if (isMounted?.current) setLoading(false);
     }
   }, [user]);
 
-  useFocusEffect(useCallback(() => { loadPayments(); }, [loadPayments]));
+  useFocusEffect(useCallback(() => {
+    const isMounted = { current: true };
+    loadPayments(isMounted);
+    return () => { isMounted.current = false; };
+  }, [loadPayments]));
 
   const handleLongPress = (item) => {
     Alert.alert(item.name, '¿Qué deseas hacer?', [

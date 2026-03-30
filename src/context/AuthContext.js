@@ -109,7 +109,7 @@ async function migrateDefaultData(newUserId) {
         .limit(1);
 
     if (!check || check.length === 0) {
-        console.log('[auth] No hay datos con user_id=default. Usuario nuevo inicia vacío.');
+        // Usuario nuevo — sin datos legacy que migrar
         return { migrated: false };
     }
 
@@ -141,6 +141,6 @@ async function migrateDefaultData(newUserId) {
             .eq('user_id', 'default');
     }
 
-    console.log('[auth] Migración completada:', counts);
+    console.info('[auth] Migración completada:', counts);
     return { migrated: true, counts };
 }
