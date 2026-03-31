@@ -175,3 +175,39 @@ export const FAB_CATS_INGRESO = [
   { key: 'ahorro', label: 'Ahorro' },
   { key: 'otros', label: 'Otros' },
 ];
+
+// ─── Colores para gráficas (PieChart / LineChart) ─────────────────────────────
+// Extraídos del board de Mixboard — teal + salmon + purple como trío principal
+export const CHART_COLORS_DARK = [
+  '#14B8A6', // teal — categoría principal
+  '#E88C99', // salmon — gastos
+  '#9333EA', // purple — ahorro
+  '#F59E0B', // amber
+  '#6B7A99', // muted blue-gray
+  '#2563EB', // blue
+  '#10B981', // green
+  '#F97316', // orange
+  '#EC4899', // pink fuerte
+  '#8B5CF6', // violet
+];
+
+export const CHART_COLORS_LIGHT = [
+  '#14B3A8',
+  '#E07A85',
+  '#9333EA',
+  '#D97706',
+  '#9CA3AF',
+  '#3B82F6',
+  '#059669',
+  '#EA580C',
+  '#DB2777',
+  '#7C3AED',
+];
+
+/**
+ * Devuelve el array de colores de gráfica según el modo del tema.
+ * @param {'dark'|'light'} mode
+ */
+export function getChartColors(mode) {
+  return mode === 'dark' ? CHART_COLORS_DARK : CHART_COLORS_LIGHT;
+}

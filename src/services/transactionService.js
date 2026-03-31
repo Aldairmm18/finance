@@ -55,7 +55,7 @@ export async function updateFutureTransactions(groupId, fromDate, payload) {
     .from('transacciones')
     .update(payload)
     .eq('recurrence_group_id', groupId)
-    .gte('date', fromDate)
+    .gte('fecha', fromDate)
     .select();
   if (error) throw error;
   return data;

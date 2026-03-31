@@ -95,7 +95,7 @@ export default function DashboardScreen() {
   const [fabVisible, setFabVisible] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('idle'); // 'idle' | 'synced' | 'error'
   const [editingTransaction, setEditingTransaction] = useState(null);
-  const { colors: C } = useTheme();
+  const { colors: C, mode } = useTheme();
 
   const cardAnims = useRef([...Array(9)].map(() => new Animated.Value(0))).current;
 
@@ -202,16 +202,20 @@ export default function DashboardScreen() {
   const flujoCajaColor = totals.flujoCaja >= 0 ? C.teal : C.pink;
   const flujoAhorroColor = totals.flujoCajaConAhorro >= 0 ? C.teal : C.pink;
 
+  const CHART_PALETTE = mode === 'dark'
+    ? ['#14B8A6','#E88C99','#9333EA','#F59E0B','#6B7A99','#2563EB','#10B981','#F97316','#EC4899','#8B5CF6']
+    : ['#14B3A8','#E07A85','#9333EA','#D97706','#9CA3AF','#3B82F6','#059669','#EA580C','#DB2777','#7C3AED'];
+
   const gastosByMaster = MASTER_CATEGORIES.reduce((acc, cat) => ({ ...acc, [cat]: 0 }), {});
   for (const [k, v] of Object.entries(totals.gastosByCategory || {})) {
     const master = normalizeCategoria(k);
     gastosByMaster[master] = (gastosByMaster[master] || 0) + (Number(v) || 0);
   }
   const gastosChartData = MASTER_CATEGORIES
-    .map(cat => ({
+    .map((cat, i) => ({
       name: cat,
       population: Math.round(gastosByMaster[cat] || 0),
-      color: CATEGORY_COLORS[cat],
+      color: CHART_PALETTE[i % CHART_PALETTE.length],
       legendFontColor: C.text,
       legendFontSize: 11,
     }))
@@ -223,10 +227,10 @@ export default function DashboardScreen() {
     ingresosByMaster[master] = (ingresosByMaster[master] || 0) + (Number(v) || 0);
   }
   const ingresosChartData = MASTER_CATEGORIES
-    .map(cat => ({
+    .map((cat, i) => ({
       name: cat,
       population: Math.round(ingresosByMaster[cat] || 0),
-      color: CATEGORY_COLORS[cat],
+      color: CHART_PALETTE[i % CHART_PALETTE.length],
       legendFontColor: C.text,
       legendFontSize: 11,
     }))
@@ -240,10 +244,13 @@ export default function DashboardScreen() {
 
   const chartWidth = screenWidth - 64;
   const chartCfg = {
-    backgroundColor: C.card,
+    backgroundColor: 'transparent',
     backgroundGradientFrom: C.card,
     backgroundGradientTo: C.card,
-    color: () => 'rgba(128,128,128,0.4)',
+    color: (opacity = 1) => `rgba(20, 184, 166, ${opacity})`,
+    labelColor: () => C.textMuted,
+    strokeWidth: 2,
+    propsForLabels: { fontSize: 11 },
   };
 
   const mesActual = (() => {
@@ -280,6 +287,23 @@ export default function DashboardScreen() {
             }} />
           </View>
           <Text style={s.subtitle}>{mesActual}</Text>
+          {/* Hero number — flujo neto del mes */}
+          {totals && (
+            <View style={{ marginTop: 12, marginBottom: 4 }}>
+              <Text style={{
+                fontSize: 38,
+                fontWeight: '900',
+                color: totals.flujoCaja >= 0 ? C.teal : C.pink,
+                letterSpacing: -1,
+                lineHeight: 42,
+              }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                {formatCOP(totals.flujoCaja)}
+              </Text>
+              <Text style={{ fontSize: 11, color: C.textMuted, fontWeight: '600', letterSpacing: 0.5, marginTop: 2 }}>
+                FLUJO NETO DEL MES
+              </Text>
+            </View>
+          )}
           <View style={[s.headerDivider, { backgroundColor: C.border }]} />
         </View>
 
@@ -447,20 +471,20 @@ export default function DashboardScreen() {
           position: 'absolute',
           bottom: 28,
           right: 20,
-          width: 52,
-          height: 52,
-          borderRadius: 26,
-          backgroundColor: C.pink,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: C.teal,
           alignItems: 'center',
           justifyContent: 'center',
-          shadowColor: '#000',
+          shadowColor: C.teal,
           shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 6,
+          shadowOpacity: 0.4,
+          shadowRadius: 12,
           elevation: 8,
         }}
       >
-        <Text style={{ color: '#fff', fontSize: 28, fontWeight: '300', lineHeight: 32, marginTop: -2 }}>+</Text>
+        <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
 
       <ExtraFABModal

@@ -1,14 +1,19 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  StyleSheet, Modal, LayoutAnimation, UIManager, Platform,
+  StyleSheet, Modal, LayoutAnimation, UIManager, Platform, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { loadDataMes, saveDataMes, getCurrentMes, computeRollover } from '../utils/storage';
 import { PERIODICIDADES, formatCOP, toMonthly, toAnnual, parseAmount } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { mesLabel, addMes } from '../utils/dateUtils';
+import { getCategoryColor } from '../utils/categoryTheme';
+import { subcategoryService } from '../services/subcategoryService';
+import SubcategoryModal from '../components/SubcategoryModal';
 
 // Habilitar LayoutAnimation en Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -381,7 +386,7 @@ const ExpenseRow = React.memo(({ label, item, onChangeMonto, onOpenPeriod, onTog
 
 // ─── SectionHeader ────────────────────────────────────────────────────────────
 
-function SectionHeader({ iconName, iconColor, label, total, expanded, onPress }) {
+function SectionHeader({ iconName, iconColor, label, total, expanded, onPress, onAddSubcat, subcatCount }) {
   const { colors: C } = useTheme();
   return (
     <TouchableOpacity
@@ -403,6 +408,25 @@ function SectionHeader({ iconName, iconColor, label, total, expanded, onPress })
     >
       <Ionicons name={iconName} size={18} color={iconColor || C.textMuted} style={{ marginRight: 12 }} />
       <Text style={{ flex: 1, fontSize: 15, fontWeight: '700', color: C.text, letterSpacing: -0.2 }}>{label}</Text>
+
+      {/* Badge de subcategorías personalizadas */}
+      {subcatCount > 0 && (
+        <View style={{ backgroundColor: C.teal + '22', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
+          <Text style={{ fontSize: 10, color: C.teal, fontWeight: '700' }}>{subcatCount}</Text>
+        </View>
+      )}
+
+      {/* Botón agregar subcategoría */}
+      {onAddSubcat && (
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation?.(); onAddSubcat(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ paddingHorizontal: 6 }}
+        >
+          <Ionicons name="add-circle-outline" size={18} color={C.teal} />
+        </TouchableOpacity>
+      )}
+
       <Text style={{ fontSize: 13, fontWeight: '700', color: total > 0 ? C.pink : C.textMuted, marginRight: 12 }}>
         {formatCOP(total)}<Text style={{ fontSize: 10, fontWeight: '400', color: C.textMuted }}>/mes</Text>
       </Text>
@@ -426,23 +450,47 @@ export default function PresupuestoScreen() {
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const [rollover, setRollover] = useState({ surplus: 0, prevMes: '' });
   const [rolloverDismissed, setRolloverDismissed] = useState(false);
+  // ── Subcategorías ──
+  const [subcategories, setSubcategories] = useState({});
+  const [subcatModalVisible, setSubcatModalVisible] = useState(false);
+  const [editingSubcat, setEditingSubcat] = useState(null);
+  const [activeCatKey, setActiveCatKey] = useState(null);
   const saveTimer = useRef(null);
   const { colors: C } = useTheme();
+  const { user } = useAuth();
 
   const currentMes = getCurrentMes();
   const isFuture = mes > currentMes;
 
   useFocusEffect(useCallback(() => {
+    let isMounted = true;
     setData(null);
     setRolloverDismissed(false);
+
     loadDataMes(mes).then(d => {
+      if (!isMounted) return;
       setData(d);
-      if (d?.rolloverAplicado?.[mes]) {
-        setRollover({ surplus: 0, prevMes: '' });
-      }
+      if (d?.rolloverAplicado?.[mes]) setRollover({ surplus: 0, prevMes: '' });
     });
-    computeRollover(mes).then(r => setRollover(r)).catch(() => {});
-  }, [mes]));
+
+    computeRollover(mes).then(r => {
+      if (isMounted) setRollover(r);
+    }).catch(() => {});
+
+    if (user) {
+      subcategoryService.getAll(user.id).then(subs => {
+        if (!isMounted) return;
+        const grouped = subs.reduce((acc, s) => {
+          if (!acc[s.category_key]) acc[s.category_key] = [];
+          acc[s.category_key].push(s);
+          return acc;
+        }, {});
+        setSubcategories(grouped);
+      }).catch(() => {});
+    }
+
+    return () => { isMounted = false; };
+  }, [mes, user]));
 
   const s = useMemo(() => makeStyles(C), [C]);
 
@@ -616,9 +664,24 @@ export default function PresupuestoScreen() {
           const item = data.gastos[cat.key]?.[key];
           return sum + (item ? toMonthly(item.monto, item.periodicidad) : 0);
         }, 0);
+        const catSubs = subcategories[cat.key] || [];
+        const catColor = getCategoryColor(cat.key);
         return (
           <View key={cat.key} style={s.section}>
-            <SectionHeader iconName={cat.iconName} label={cat.label} total={catTotal} expanded={!!expanded[cat.key]} onPress={() => toggleSection(cat.key)} />
+            <SectionHeader
+              iconName={cat.iconName}
+              iconColor={catColor}
+              label={cat.label}
+              total={catTotal}
+              expanded={!!expanded[cat.key]}
+              onPress={() => toggleSection(cat.key)}
+              subcatCount={catSubs.length}
+              onAddSubcat={() => {
+                setActiveCatKey(cat.key);
+                setEditingSubcat(null);
+                setSubcatModalVisible(true);
+              }}
+            />
             {expanded[cat.key] && (
               <View style={s.sectionBody}>
                 {cat.items.map(({ key, label }) => {
@@ -635,6 +698,58 @@ export default function PresupuestoScreen() {
                     />
                   );
                 })}
+
+                {/* ── Subcategorías personalizadas ── */}
+                {catSubs.length > 0 && (
+                  <View style={{ borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, marginTop: 4 }}>
+                    <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>
+                      Personalizadas
+                    </Text>
+                    {catSubs.map(sub => (
+                      <TouchableOpacity
+                        key={sub.id}
+                        onLongPress={() => {
+                          Alert.alert(sub.name, '¿Qué deseas hacer?', [
+                            {
+                              text: 'Editar',
+                              onPress: () => {
+                                setActiveCatKey(cat.key);
+                                setEditingSubcat(sub);
+                                setSubcatModalVisible(true);
+                              },
+                            },
+                            {
+                              text: 'Eliminar',
+                              style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  await subcategoryService.delete(sub.id);
+                                  setSubcategories(prev => ({
+                                    ...prev,
+                                    [cat.key]: (prev[cat.key] || []).filter(s => s.id !== sub.id),
+                                  }));
+                                } catch (e) {
+                                  Alert.alert('Error', e?.message || 'No se pudo eliminar');
+                                }
+                              },
+                            },
+                            { text: 'Cancelar', style: 'cancel' },
+                          ]);
+                        }}
+                        activeOpacity={0.7}
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border }}
+                      >
+                        <MaterialCommunityIcons name={sub.icon} size={16} color={sub.color} style={{ marginRight: 10 }} />
+                        <Text style={{ flex: 1, fontSize: 14, color: C.text, fontWeight: '500' }}>{sub.name}</Text>
+                        {sub.duration_months ? (
+                          <Text style={{ fontSize: 11, color: C.textMuted }}>
+                            {sub.duration_months} mes{sub.duration_months > 1 ? 'es' : ''}
+                          </Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -670,6 +785,39 @@ export default function PresupuestoScreen() {
         currentMes={mes}
         onSelect={setMes}
         onClose={() => setMonthPickerVisible(false)}
+      />
+
+      <SubcategoryModal
+        visible={subcatModalVisible}
+        onClose={() => { setSubcatModalVisible(false); setEditingSubcat(null); }}
+        categoryKey={activeCatKey}
+        editData={editingSubcat}
+        onSave={async (payload) => {
+          try {
+            if (editingSubcat) {
+              const updated = await subcategoryService.update(editingSubcat.id, payload);
+              setSubcategories(prev => ({
+                ...prev,
+                [activeCatKey]: (prev[activeCatKey] || []).map(s =>
+                  s.id === editingSubcat.id ? updated : s
+                ),
+              }));
+            } else {
+              const created = await subcategoryService.create(user.id, {
+                ...payload,
+                category_key: activeCatKey,
+              });
+              setSubcategories(prev => ({
+                ...prev,
+                [activeCatKey]: [...(prev[activeCatKey] || []), created],
+              }));
+            }
+            setSubcatModalVisible(false);
+            setEditingSubcat(null);
+          } catch (e) {
+            Alert.alert('Error', e?.message || 'No se pudo guardar la subcategoría');
+          }
+        }}
       />
     </ScrollView>
   );

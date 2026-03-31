@@ -37,25 +37,34 @@ export default function StatCard({ label, value, sub, accentColor, half, animVal
   } : {};
   return (
     <Animated.View style={[
-      { backgroundColor: C.card, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: C.border, marginBottom: 10 },
+      {
+        backgroundColor: C.card,
+        borderRadius: 14,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: C.border,
+        borderLeftWidth: 3,
+        borderLeftColor: accentColor,
+        marginBottom: 10,
+        flexDirection: 'row',
+      },
       half && { flex: 1 },
       animStyle,
     ]}>
-      <View style={{ height: 3, backgroundColor: accentColor }} />
-      <View style={{ padding: 14 }}>
-        <Text style={{ fontSize: 10, color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700', marginBottom: 8 }}>
+      <View style={{ flex: 1, padding: 14 }}>
+        <Text style={{ fontSize: 10, color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700', marginBottom: 6 }}>
           {label}
         </Text>
         <Text
-          style={{ fontSize: 20, fontWeight: '800', color: accentColor, letterSpacing: -0.5 }}
+          style={{ fontSize: 22, fontWeight: '900', color: accentColor, letterSpacing: -0.5 }}
           numberOfLines={1}
           adjustsFontSizeToFit
-          minimumFontScale={0.7}
+          minimumFontScale={0.65}
         >
           {value}
         </Text>
         {sub ? (
-          <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 5 }}>{sub}</Text>
+          <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>{sub}</Text>
         ) : null}
       </View>
     </Animated.View>
