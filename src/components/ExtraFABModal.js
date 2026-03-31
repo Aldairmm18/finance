@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
-  ScrollView,
   Platform,
   Keyboard,
   ActivityIndicator,
@@ -77,28 +76,26 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
       transparent
       animationType="slide"
       onRequestClose={handleClose}
+      statusBarTranslucent
     >
+      {/* Backdrop — toca para cerrar */}
+      <TouchableOpacity
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}
+        activeOpacity={1}
+        onPress={handleClose}
+      />
+
+      {/* Contenido del modal — FUERA del backdrop, pegado al fondo */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
       >
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}
-          activeOpacity={1}
-          onPress={handleClose}
-        />
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
         <View style={{
           backgroundColor: C.card,
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           padding: 24,
-          paddingBottom: 36,
+          paddingBottom: Platform.OS === 'ios' ? 40 : 28,
           borderTopWidth: 1,
           borderColor: C.border,
         }}>
@@ -256,7 +253,6 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
             )}
           </TouchableOpacity>
         </View>
-        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
