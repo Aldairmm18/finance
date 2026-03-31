@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,60 @@ import {
   Platform,
   Keyboard,
   ActivityIndicator,
+  PanResponder,
+  Animated,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { registrarExtraordinario } from '../utils/storage';
 import { formatCOP } from '../utils/calculations';
 import { FAB_CATS_GASTO, FAB_CATS_INGRESO } from '../utils/categoryTheme';
+
+export default function ExtraFABModal({ visible, onClose, onSuccess }) {
+  const { colors: C } = useTheme();
+  const [tipo, setTipo] = useState('gasto');
+  const [descripcion, setDescripcion] = useState('');
+  const [monto, setMonto] = useState('');
+  const [categoria, setCategoria] = useState('otros');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Solo capturar swipe hacia abajo (dy > 0) con suficiente velocidad
+        return gestureState.dy > 8 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 80 || gestureState.vy > 0.5) {
+          // Swipe suficiente — cerrar el modal
+          Animated.timing(translateY, {
+            toValue: 600,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            translateY.setValue(0);
+            handleClose();
+          });
+        } else {
+          // Swipe insuficiente — volver a posición original
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 100,
+            friction: 10,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
 export default function ExtraFABModal({ visible, onClose, onSuccess }) {
   const { colors: C } = useTheme();
@@ -90,15 +139,22 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-        <View style={{
-          backgroundColor: C.card,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          padding: 24,
-          paddingBottom: Platform.OS === 'ios' ? 40 : 28,
-          borderTopWidth: 1,
-          borderColor: C.border,
-        }}>
+        <Animated.View
+          style={{
+            backgroundColor: C.card,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            borderTopWidth: 1,
+            borderColor: C.border,
+            transform: [{ translateY }],
+          }}
+          {...panResponder.panHandlers}
+        >
+          {/* Handle bar — indica que se puede deslizar hacia abajo */}
+          <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: C.border }} />
+          </View>
+          <View style={{ padding: 24, paddingTop: 8, paddingBottom: Platform.OS === 'ios' ? 40 : 28 }}>
           {/* Header */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
             <View style={{ flex: 1 }}>
@@ -252,7 +308,8 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
               </Text>
             )}
           </TouchableOpacity>
-        </View>
+          </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
