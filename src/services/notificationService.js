@@ -1,6 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Alert, Platform } from 'react-native';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
+// En Expo Go las push notifications fueron removidas desde SDK 53
+const isExpoGo = Constants.appOwnership === 'expo';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -12,9 +16,8 @@ Notifications.setNotificationHandler({
 
 export const notificationService = {
   async requestPermissions() {
-    if (!Device.isDevice) return false;
+    if (isExpoGo || !Device.isDevice) return false;
     try {
-      // Android channel (debe crearse antes de pedir permisos en Android 13+)
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('pagos', {
           name: 'Pagos recurrentes',
@@ -27,25 +30,20 @@ export const notificationService = {
       const { status } = await Notifications.requestPermissionsAsync();
       return status === 'granted';
     } catch (e) {
-      Alert.alert('Notificaciones', 'No se pudieron solicitar los permisos de notificación: ' + (e?.message || e));
+      console.warn('Notificaciones no disponibles:', e?.message);
       return false;
     }
   },
 
   async schedulePaymentReminder(payment) {
+    if (isExpoGo) return null;
     try {
-      // Calcular próxima fecha de pago
       const now = new Date();
       let paymentDate = new Date(now.getFullYear(), now.getMonth(), payment.day_of_month);
-      if (paymentDate <= now) {
-        paymentDate.setMonth(paymentDate.getMonth() + 1);
-      }
-
+      if (paymentDate <= now) paymentDate.setMonth(paymentDate.getMonth() + 1);
       const notifyDate = new Date(paymentDate);
       notifyDate.setDate(notifyDate.getDate() - (payment.notify_days_before ?? 3));
-
-      if (notifyDate <= now) return null; // Ya pasó
-
+      if (notifyDate <= now) return null;
       const id = await Notifications.scheduleNotificationAsync({
         content: {
           title: '💳 Pago próximo',
@@ -53,18 +51,17 @@ export const notificationService = {
           data: { paymentId: payment.id },
           channelId: 'pagos',
         },
-        trigger: {
-          date: notifyDate,
-        },
+        trigger: { date: notifyDate },
       });
       return id;
     } catch (e) {
-      Alert.alert('Error de notificación', 'No se pudo programar el recordatorio: ' + (e?.message || e));
+      console.warn('Error programando notificación:', e?.message);
       return null;
     }
   },
 
   async cancelAllPaymentNotifications() {
+    if (isExpoGo) return;
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
     } catch (e) {
@@ -73,6 +70,7 @@ export const notificationService = {
   },
 
   async rescheduleAll(payments) {
+    if (isExpoGo) return;
     await this.cancelAllPaymentNotifications();
     for (const p of (payments || []).filter(p => p.is_active)) {
       await this.schedulePaymentReminder(p);
