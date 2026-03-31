@@ -37,12 +37,24 @@ export function formatCOP(amount) {
  * del presupuesto para que el bot y el FAB aparezcan en el Dashboard.
  */
 export function mergeTransacciones(baseTotals, transacciones) {
-  if (!transacciones || transacciones.length === 0) return baseTotals;
+  // Guard: si no hay base (mes sin datos de presupuesto), crear estructura vacía
+  const base = baseTotals || {
+    ingresosMonthly: 0, ingresosAnual: 0,
+    totalGastosMonthly: 0, totalGastosAnual: 0,
+    esencialesMonthly: 0, noEsencialesMonthly: 0,
+    creditosMonthly: 0, ahorroMonthly: 0,
+    flujoCaja: 0, flujoCajaAnual: 0,
+    flujoCajaConAhorro: 0, flujoCajaConAhorroAnual: 0,
+    fondoEmergencia: 0,
+    gastosByCategory: {}, ingresosBySource: {},
+  };
+
+  if (!transacciones || transacciones.length === 0) return base;
 
   const t = {
-    ...baseTotals,
-    gastosByCategory: { ...baseTotals.gastosByCategory },
-    ingresosBySource: { ...baseTotals.ingresosBySource },
+    ...base,
+    gastosByCategory: { ...base.gastosByCategory },
+    ingresosBySource: { ...base.ingresosBySource },
   };
 
   for (const tx of transacciones) {
