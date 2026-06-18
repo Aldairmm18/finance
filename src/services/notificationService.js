@@ -8,7 +8,9 @@ const isExpoGo = Constants.appOwnership === 'expo';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    // SDK 53+: shouldShowAlert quedó obsoleto → Banner + List
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -49,9 +51,13 @@ export const notificationService = {
           title: '💳 Pago próximo',
           body: `${payment.name} — $${Number(payment.amount).toLocaleString('es-CO')} se cobra el día ${payment.day_of_month}`,
           data: { paymentId: payment.id },
+        },
+        trigger: {
+          // SDK 53+: el trigger requiere `type`; channelId va aquí, no en content
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: notifyDate,
           channelId: 'pagos',
         },
-        trigger: { date: notifyDate },
       });
       return id;
     } catch (e) {

@@ -315,19 +315,22 @@ export default function ResumenMesScreen() {
   const loadHistorico = useCallback(async (year) => {
     setHistoricoLoading(true);
     try {
-      let totalIngresos = 0;
-      let totalGastos = 0;
-      for (let m = 1; m <= 12; m += 1) {
-        const mesKey = `${year}-${String(m).padStart(2, '0')}`;
-        const [d, transactions] = await Promise.all([
-          loadDataMes(mesKey),
-          loadTransaccionesMes(mesKey),
-        ]);
-        const base = computeTotals(d);
-        const merged = mergeTransacciones(base, transactions);
-        totalIngresos += merged?.ingresosMonthly || 0;
-        totalGastos += merged?.totalGastosMonthly || 0;
-      }
+      // Los 12 meses en paralelo (antes era secuencial → hasta 24 viajes en serie)
+      const meses = await Promise.all(
+        Array.from({ length: 12 }, (_, i) => {
+          const mesKey = `${year}-${String(i + 1).padStart(2, '0')}`;
+          return Promise.all([loadDataMes(mesKey), loadTransaccionesMes(mesKey)])
+            .then(([d, transactions]) => {
+              const merged = mergeTransacciones(computeTotals(d), transactions);
+              return {
+                ingresos: merged?.ingresosMonthly || 0,
+                gastos: merged?.totalGastosMonthly || 0,
+              };
+            });
+        }),
+      );
+      const totalIngresos = meses.reduce((s, m) => s + m.ingresos, 0);
+      const totalGastos = meses.reduce((s, m) => s + m.gastos, 0);
       setHistoricoStats({
         totalIngresos,
         totalGastos,
