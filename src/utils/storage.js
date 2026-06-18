@@ -26,6 +26,25 @@ export function clearUserIdCache() {
   _cachedUserId = null;
 }
 
+/**
+ * Borra TODA la caché financiera local (presupuesto base, presupuestos
+ * mensuales, transacciones y timestamp de sync). Imprescindible al cerrar
+ * sesión: evita que el siguiente usuario vea, aunque sea un instante, los
+ * datos cacheados del usuario anterior en el mismo dispositivo.
+ */
+export async function clearLocalCache() {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const toRemove = keys.filter(k =>
+      k === STORAGE_KEY ||
+      k === SYNC_KEY ||
+      k.startsWith(STORAGE_MES_PREFIX) ||
+      k.startsWith(STORAGE_TXS_PREFIX)
+    );
+    if (toRemove.length) await AsyncStorage.multiRemove(toRemove);
+  } catch { /* no bloquear el logout por un fallo de caché */ }
+}
+
 /** Retorna el mes actual en formato "YYYY-MM" */
 export function getCurrentMes() {
   const now = new Date();
