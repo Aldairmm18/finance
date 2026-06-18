@@ -4,6 +4,7 @@ import { computeTotals } from './calculations'; // import estático (evita requi
 
 const STORAGE_KEY = '@finance_data_v1';
 const STORAGE_MES_PREFIX = '@finance_mes_v1';
+const STORAGE_TXS_PREFIX = '@finance_txs_v1';
 export const SYNC_KEY = '@finance_last_sync';
 /** Retorna el user_id autenticado, o null si no hay sesión */
 let _cachedUserId = null;
@@ -257,6 +258,24 @@ export async function loadDataMes(mes, options = {}) {
 }
 
 /**
+ * Lee SOLO la caché local del presupuesto de un mes (sin red).
+ * Para render instantáneo (stale-while-revalidate). Cae al presupuesto base
+ * cacheado y, si no hay nada, a DEFAULT_DATA. Nunca null.
+ */
+export async function loadDataMesCache(mes) {
+  const localKey = `${STORAGE_MES_PREFIX}_${mes}`;
+  try {
+    const json = await AsyncStorage.getItem(localKey);
+    if (json) return deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), JSON.parse(json));
+  } catch { }
+  try {
+    const baseJson = await AsyncStorage.getItem(STORAGE_KEY);
+    if (baseJson) return deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), JSON.parse(baseJson));
+  } catch { }
+  return JSON.parse(JSON.stringify(DEFAULT_DATA));
+}
+
+/**
  * Guarda el presupuesto de un mes específico en `presupuesto_mensual`.
  * @param {string} mes   Formato "YYYY-MM"
  * @param {object} data  Datos del presupuesto
@@ -357,9 +376,58 @@ export async function loadTransaccionesMes(mes) {
       6000,
     );
     if (error) return [];
-    return data || [];
+    const rows = data || [];
+    try { await AsyncStorage.setItem(`${STORAGE_TXS_PREFIX}_${m}`, JSON.stringify(rows)); } catch { }
+    return rows;
   } catch {
     return [];
+  }
+}
+
+/**
+ * Lee SOLO la caché local de transacciones de un mes (sin red).
+ * Para render instantáneo. Retorna [] si no hay caché.
+ */
+export async function loadTransaccionesMesCache(mes) {
+  try {
+    const m = mes || getCurrentMes();
+    const json = await AsyncStorage.getItem(`${STORAGE_TXS_PREFIX}_${m}`);
+    if (json) return JSON.parse(json);
+  } catch { }
+  return [];
+}
+
+/**
+ * Trae transacciones del mes desde Supabase y actualiza la caché local.
+ * A diferencia de loadTransaccionesMes(), retorna null si falla la red/no hay
+ * sesión (para que el caller distinga "error" de "0 transacciones" y NO borre
+ * lo que ya mostraba). Retorna [] solo cuando el fetch fue exitoso y vacío.
+ */
+export async function fetchTransaccionesMesRemote(mes) {
+  if (!supabase) return null;
+  try {
+    const uid = await getUserId();
+    if (!uid) return null;
+    const m = mes || getCurrentMes();
+    const [y, month] = m.split('-').map(Number);
+    const start = new Date(y, month - 1, 1).toISOString().split('T')[0];
+    const end = new Date(y, month, 0).toISOString().split('T')[0];
+    const { data, error } = await withTimeout(
+      supabase
+        .from('transacciones')
+        .select('*')
+        .eq('user_id', uid)
+        .gte('fecha', start)
+        .lte('fecha', end)
+        .order('fecha', { ascending: false }),
+      6000,
+    );
+    if (error) return null;
+    const rows = data || [];
+    try { await AsyncStorage.setItem(`${STORAGE_TXS_PREFIX}_${m}`, JSON.stringify(rows)); } catch { }
+    return rows;
+  } catch {
+    return null;
   }
 }
 

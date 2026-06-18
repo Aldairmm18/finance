@@ -23,6 +23,9 @@ import {
   getCurrentMes,
   loadTransaccionesMes,
   aplicarTraspasoSobrante,
+  loadDataMesCache,
+  loadTransaccionesMesCache,
+  fetchTransaccionesMesRemote,
 } from '../utils/storage';
 import { formatCOP, computeTotals, mergeTransacciones } from '../utils/calculations';
 import { MASTER_CATEGORIES, CATEGORY_COLORS, normalizeCategoria, getCategoryIcon } from '../utils/categoryTheme';
@@ -99,29 +102,61 @@ export default function DashboardScreen() {
 
   const cardAnims = useRef([...Array(9)].map(() => new Animated.Value(0))).current;
 
-  const reload = useCallback(async (isMounted) => {
-    cardAnims.forEach(a => a.setValue(0));
-    try {
-      const mesActual = getCurrentMes();
-      await aplicarTraspasoSobrante(mesActual);
-      const [d, txs] = await Promise.all([loadDataMes(mesActual), loadTransaccionesMes()]);
-      if (!isMounted?.current) return;
-      const base = computeTotals(d);
-      setTotals(mergeTransacciones(base, txs));
-      setTransaccionesMes(txs || []);
-      const extras = (txs || []).filter(tx => tx.es_extraordinario);
-      setExtraordinarios(extras.filter(tx => tx.tipo === 'gasto'));
-      setExtrasIngreso(extras.filter(tx => tx.tipo === 'ingreso'));
-      setCloudStatus('synced');
+  const applyData = useCallback((d, txs, animate) => {
+    const base = computeTotals(d);
+    setTotals(mergeTransacciones(base, txs));
+    setTransaccionesMes(txs || []);
+    const extras = (txs || []).filter(tx => tx.es_extraordinario);
+    setExtraordinarios(extras.filter(tx => tx.tipo === 'gasto'));
+    setExtrasIngreso(extras.filter(tx => tx.tipo === 'ingreso'));
+    if (animate) {
       setFocusKey(k => k + 1);
       Animated.stagger(65, cardAnims.map(a =>
         Animated.timing(a, { toValue: 1, duration: 420, useNativeDriver: true })
       )).start();
+    }
+  }, []);
+
+  const reload = useCallback(async (isMounted) => {
+    cardAnims.forEach(a => a.setValue(0));
+    const mesActual = getCurrentMes();
+    try {
+      // Fase 1: caché local → render instantáneo (no espera la red)
+      const [dC, txsC] = await Promise.all([
+        loadDataMesCache(mesActual),
+        loadTransaccionesMesCache(mesActual),
+      ]);
+      if (!isMounted?.current) return;
+      applyData(dC, txsC, true);
+
+      // Fase 2: red en background → datos frescos
+      const [dN, txsN] = await Promise.all([
+        loadDataMes(mesActual),
+        fetchTransaccionesMesRemote(mesActual),
+      ]);
+      if (!isMounted?.current) return;
+      if (txsN !== null) {
+        applyData(dN, txsN, false);
+        setCloudStatus('synced');
+      } else {
+        setCloudStatus('error');
+      }
+
+      // Rollover del mes anterior FUERA del camino crítico (ya no bloquea la carga)
+      aplicarTraspasoSobrante(mesActual)
+        .then(res => {
+          if (res?.applied && isMounted?.current) {
+            fetchTransaccionesMesRemote(mesActual).then(t => {
+              if (t !== null && isMounted?.current) applyData(dN, t, false);
+            });
+          }
+        })
+        .catch(() => {});
     } catch {
       if (!isMounted?.current) return;
       setCloudStatus('error');
     }
-  }, []);
+  }, [applyData]);
 
   useFocusEffect(useCallback(() => {
     const isMounted = { current: true };

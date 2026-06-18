@@ -18,7 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
-import { loadTransaccionesMes, getCurrentMes } from '../utils/storage';
+import { loadTransaccionesMes, getCurrentMes, loadTransaccionesMesCache, fetchTransaccionesMesRemote } from '../utils/storage';
 import { formatCOP, parseCOP } from '../utils/calculations';
 import { getCategoryColor, getCategoryIcon } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
@@ -116,22 +116,37 @@ export default function GastosScreen() {
 
   const currentMes = getCurrentMes();
 
-  const loadAll = useCallback(async (isMounted) => {
-    listAnims.forEach(a => a.setValue(0));
-    try {
-      const data = await loadTransaccionesMes(mes);
-      if (!isMounted?.current) return;
-      setTxs(data || []);
+  const applyTxs = useCallback((data, animate) => {
+    setTxs(data || []);
+    if (animate) {
+      listAnims.forEach(a => a.setValue(0));
       Animated.stagger(30, listAnims.slice(0, Math.min((data || []).length, 30)).map(a =>
         Animated.timing(a, { toValue: 1, duration: 280, useNativeDriver: true })
       )).start();
+    } else {
+      // Refresco sin animación: asegurar que todas las filas queden visibles
+      listAnims.forEach(a => a.setValue(1));
+    }
+  }, []);
+
+  const loadAll = useCallback(async (isMounted) => {
+    try {
+      // Fase 1: caché local → render instantáneo
+      const cached = await loadTransaccionesMesCache(mes);
+      if (!isMounted?.current) return;
+      applyTxs(cached, true);
+      setLoading(false);
+
+      // Fase 2: red en background → datos frescos (null = error, conserva lo mostrado)
+      const fresh = await fetchTransaccionesMesRemote(mes);
+      if (!isMounted?.current) return;
+      if (fresh !== null) applyTxs(fresh, false);
     } catch {
       if (!isMounted?.current) return;
-      setTxs([]);
     } finally {
       if (isMounted?.current) setLoading(false);
     }
-  }, [mes]);
+  }, [applyTxs, mes]);
 
   const eliminarTransaccion = useCallback(async (id) => {
     if (!id) return;

@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { loadDataMes, getCurrentMes, loadTransaccionesMes, loadTransaccionesAnio } from '../utils/storage';
+import { loadDataMes, getCurrentMes, loadTransaccionesMes, loadTransaccionesAnio, loadDataMesCache, loadTransaccionesMesCache, fetchTransaccionesMesRemote } from '../utils/storage';
 import { computeTotals, mergeTransacciones, formatCOP, toMonthly } from '../utils/calculations';
 import { getCategoryColor, getCategoryIcon } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
@@ -181,28 +181,46 @@ export default function ResumenMesScreen() {
   const mes = getCurrentMes();
 
   // ── Load monthly data ──
-  const loadAll = useCallback(async (isMounted) => {
-    cardAnims.forEach(a => a.setValue(0));
-    try {
-      const [d, transactions] = await Promise.all([
-        loadDataMes(mes),
-        loadTransaccionesMes(mes),
-      ]);
-      if (!isMounted?.current) return;
-      const base = computeTotals(d);
-      const merged = mergeTransacciones(base, transactions);
-      setPlanned(base);
-      setActual(merged);
-      setTxs(transactions || []);
-      setCloudStatus('synced');
+  const applyMes = useCallback((d, transactions, animate) => {
+    const base = computeTotals(d);
+    setPlanned(base);
+    setActual(mergeTransacciones(base, transactions));
+    setTxs(transactions || []);
+    if (animate) {
       Animated.stagger(50, cardAnims.map(a =>
         Animated.timing(a, { toValue: 1, duration: 380, useNativeDriver: true })
       )).start();
+    }
+  }, []);
+
+  const loadAll = useCallback(async (isMounted) => {
+    cardAnims.forEach(a => a.setValue(0));
+    try {
+      // Fase 1: caché local → render instantáneo
+      const [dC, txC] = await Promise.all([
+        loadDataMesCache(mes),
+        loadTransaccionesMesCache(mes),
+      ]);
+      if (!isMounted?.current) return;
+      applyMes(dC, txC, true);
+
+      // Fase 2: red en background → datos frescos
+      const [dN, txN] = await Promise.all([
+        loadDataMes(mes),
+        fetchTransaccionesMesRemote(mes),
+      ]);
+      if (!isMounted?.current) return;
+      if (txN !== null) {
+        applyMes(dN, txN, false);
+        setCloudStatus('synced');
+      } else {
+        setCloudStatus('error');
+      }
     } catch {
       if (!isMounted?.current) return;
       setCloudStatus('error');
     }
-  }, []);
+  }, [applyMes]);
 
   const loadAnio = useCallback(async (year, isMounted) => {
     setAnioLoading(true);
