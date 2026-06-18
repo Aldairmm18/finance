@@ -1,11 +1,24 @@
 import { supabase } from './supabase';
 
 /**
+ * Genera un UUID v4 sin depender del global `crypto`, que no existe en
+ * React Native (Hermes) sin polyfill. Suficiente para identificar grupos
+ * de transacciones recurrentes (no requiere fuerza criptográfica).
+ */
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
  * Crea un ingreso recurrente insertando N copias de la transacción,
  * una por mes, todas compartiendo el mismo recurrence_group_id.
  */
 export async function createRecurringIncome(userId, baseTransaction, recurrenceMonths) {
-  const groupId = crypto.randomUUID();
+  const groupId = uuidv4();
   const transactions = [];
 
   for (let i = 0; i < recurrenceMonths; i++) {

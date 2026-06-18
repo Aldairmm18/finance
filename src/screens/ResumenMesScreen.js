@@ -656,10 +656,14 @@ export default function ResumenMesScreen() {
           </Animated.View>
 
           {(() => {
-            const catEntries = Object.keys(CAT_META).map(k => ({
+            const catKeys = Array.from(new Set([
+              ...Object.keys(actual?.gastosByCategory || {}),
+              ...Object.keys(planned?.gastosByCategory || {}),
+            ]));
+            const catEntries = catKeys.map(k => ({
               key: k,
-              actual: actual.gastosByCategory[k] || 0,
-              planned: planned?.gastosByCategory[k] || 0,
+              actual: actual?.gastosByCategory?.[k] || 0,
+              planned: planned?.gastosByCategory?.[k] || 0,
             })).filter(e => e.actual > 0 || e.planned > 0);
 
             return catEntries.length === 0 ? (
