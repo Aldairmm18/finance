@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -99,6 +100,7 @@ export default function DashboardScreen() {
   const [fabVisible, setFabVisible] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('idle'); // 'idle' | 'synced' | 'error'
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const { colors: C, mode } = useTheme();
 
   const cardAnims = useRef([...Array(9)].map(() => new Animated.Value(0))).current;
@@ -171,6 +173,15 @@ export default function DashboardScreen() {
     reload(isMounted);
     return () => { isMounted.current = false; };
   }, [reload]));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await reload();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [reload]);
 
   const refreshExtras = useCallback(async () => {
     try {
@@ -317,6 +328,9 @@ export default function DashboardScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.teal} colors={[C.teal]} />
+        }
       >
         <View style={s.header}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

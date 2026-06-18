@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -280,19 +281,24 @@ export default function RecurringPaymentsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editData, setEditData] = useState(null);
 
-  const loadPayments = useCallback(async (isMounted) => {
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadPayments = useCallback(async (isMounted, showSpinner = true) => {
     if (!user) return;
-    setLoading(true);
+    // Solo aborta si el componente perdió foco/se desmontó; las llamadas sin
+    // arg (crear/eliminar/refrescar) sí actualizan la lista.
+    const active = () => !isMounted || isMounted.current !== false;
+    if (showSpinner) setLoading(true);
     try {
       const data = await recurringPaymentService.getAll(user.id);
-      if (!isMounted?.current) return;
+      if (!active()) return;
       setPayments(data ?? []);
       await notificationService.rescheduleAll(data ?? []);
     } catch (e) {
-      if (!isMounted?.current) return;
+      if (!active()) return;
       Alert.alert('Error', 'No se pudieron cargar los pagos recurrentes.');
     } finally {
-      if (isMounted?.current) setLoading(false);
+      if (active()) setLoading(false);
     }
   }, [user]);
 
@@ -301,6 +307,11 @@ export default function RecurringPaymentsScreen() {
     loadPayments(isMounted);
     return () => { isMounted.current = false; };
   }, [loadPayments]));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await loadPayments(undefined, false); } finally { setRefreshing(false); }
+  }, [loadPayments]);
 
   const handleLongPress = (item) => {
     Alert.alert(item.name, '¿Qué deseas hacer?', [
@@ -369,6 +380,9 @@ export default function RecurringPaymentsScreen() {
             <PaymentItem item={item} onLongPress={handleLongPress} colors={C} />
           )}
           contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.teal} colors={[C.teal]} />
+          }
           ListEmptyComponent={
             <View style={{ marginTop: 60, alignItems: 'center' }}>
               <MaterialCommunityIcons name="bell-ring-outline" size={48} color={C.textMuted} />

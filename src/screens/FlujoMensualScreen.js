@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadTransaccionesAnio, loadDataMes } from '../utils/storage';
 import { formatCOP, computeTotals } from '../utils/calculations';
@@ -20,10 +20,9 @@ export default function FlujoMensualScreen() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
-  useFocusEffect(useCallback(() => {
-    let isActive = true;
-    setAnioTxs([]);
-    setBudgetByMonth(buildEmptyBudgets());
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (guard) => {
     const monthKeys = Array.from({ length: 12 }, (_, i) =>
       `${selectedYear}-${String(i + 1).padStart(2, '0')}`
     );
@@ -42,19 +41,30 @@ export default function FlujoMensualScreen() {
         }
       })
     );
-    Promise.all([loadTransaccionesAnio(selectedYear), loadBudgets])
-      .then(([txs, budgets]) => {
-        if (!isActive) return;
-        setAnioTxs(txs || []);
-        setBudgetByMonth(budgets || buildEmptyBudgets());
-      })
-      .catch(() => {
-        if (!isActive) return;
-        setAnioTxs([]);
-        setBudgetByMonth(buildEmptyBudgets());
-      });
-    return () => { isActive = false; };
-  }, [selectedYear]));
+    try {
+      const [txs, budgets] = await Promise.all([loadTransaccionesAnio(selectedYear), loadBudgets]);
+      if (guard && !guard.current) return;
+      setAnioTxs(txs || []);
+      setBudgetByMonth(budgets || buildEmptyBudgets());
+    } catch {
+      if (guard && !guard.current) return;
+      setAnioTxs([]);
+      setBudgetByMonth(buildEmptyBudgets());
+    }
+  }, [selectedYear]);
+
+  useFocusEffect(useCallback(() => {
+    const guard = { current: true };
+    setAnioTxs([]);
+    setBudgetByMonth(buildEmptyBudgets());
+    load(guard);
+    return () => { guard.current = false; };
+  }, [load]));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await load(); } finally { setRefreshing(false); }
+  }, [load]);
 
   const s = useMemo(() => makeStyles(C), [C]);
 
@@ -102,7 +112,15 @@ export default function FlujoMensualScreen() {
   const negCount = allFlujos.filter(f => f < 0).length;
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={s.container}
+      contentContainerStyle={s.content}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.teal} colors={[C.teal]} />
+      }
+    >
       <Text style={s.title}>Flujo Mensual</Text>
 
       {/* ── Selector de año ── */}
