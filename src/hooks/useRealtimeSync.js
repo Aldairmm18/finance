@@ -19,8 +19,10 @@ export function useRealtimeSync(onUpdate) {
   useEffect(() => {
     if (!supabase) return;  // sin cliente, no suscribir
 
+    // Nombre único por sesión para evitar conflictos si la app está abierta en varios dispositivos
+    const channelName = `finance-txns-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel('custom-all-channel')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transacciones' },

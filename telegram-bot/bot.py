@@ -6,10 +6,16 @@ Comandos: /start /ayuda /hoy /semana /mes /balance /categorias /ultimos /borrar 
 Texto libre: "almuerzo 15000", "salario 3.500.000", "extra multa 200000"
 """
 
+import asyncio
 import logging
 import os
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+# Python 3.14 en Windows: forzar SelectorEventLoop para compatibilidad con httpcore/anyio
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -111,53 +117,50 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(
             "👋 *Hola, soy tu bot de finanzas personales.*\n\n"
-            "Para empezar, vincula tu cuenta de la app:\n"
-            "`/vincular tu@email.com tuContraseña`\n\n"
-            "Si no tienes cuenta, regístrate primero en la app Finance.",
+            "Para empezar, vincula tu cuenta:\n\n"
+            "1️⃣ Abre la app Finance\n"
+            "2️⃣ Ve a Configuración → Vincular Telegram\n"
+            "3️⃣ Genera un código y envíalo aquí:\n"
+            "`/vincular 123456`\n\n"
+            "Si no tienes cuenta, regístrate primero en la app.",
             parse_mode='Markdown',
         )
 
 
 async def cmd_vincular(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Vincula la cuenta de Telegram con una cuenta de la app."""
+    """Vincula la cuenta de Telegram usando un código de 6 dígitos generado en la app."""
     chat_id = update.effective_chat.id
 
-    if not ctx.args or len(ctx.args) < 2:
+    if not ctx.args or len(ctx.args) != 1 or not ctx.args[0].strip().isdigit():
         await update.message.reply_text(
-            "Uso: `/vincular email contraseña`\n\n"
-            "Ejemplo: `/vincular aldair@correo.com MiPass123`",
+            "📱 *¿Cómo vincular tu cuenta?*\n\n"
+            "1️⃣ Abre la app Finance\n"
+            "2️⃣ Ve a *Configuración → Vincular Telegram*\n"
+            "3️⃣ Toca *Generar código* (válido 5 min)\n"
+            "4️⃣ Envía aquí: `/vincular 123456`\n\n"
+            "_Tu contraseña nunca viaja por Telegram._",
             parse_mode='Markdown',
         )
         return
 
-    email = ctx.args[0]
-    password = ' '.join(ctx.args[1:])
+    token = ctx.args[0].strip()
 
     try:
-        user_id = db.vincular_telegram(chat_id, email, password)
+        user_id = db.vincular_con_token(chat_id, token)
         logger.info('Vinculado chat_id=%s → user_id=%s', chat_id, user_id[:8])
         await update.message.reply_text(
             "✅ *¡Vinculación exitosa!*\n\n"
-            "Tu cuenta de Telegram está conectada con tu cuenta de la app Finance.\n"
+            "Tu cuenta de Telegram está conectada con la app Finance.\n"
             "Ahora puedes registrar gastos e ingresos directamente desde aquí.\n\n"
             "_Escribe /ayuda para ver los comandos disponibles._",
             parse_mode='Markdown',
         )
     except Exception as e:
         logger.error('vincular error: %s', e)
-        msg = str(e)
-        if 'Invalid login' in msg or 'invalid' in msg.lower():
-            await update.message.reply_text(
-                "❌ *Credenciales incorrectas.*\n\n"
-                "Verifica tu email y contraseña e intenta de nuevo.\n"
-                "Usa: `/vincular tu@email.com tuContraseña`",
-                parse_mode='Markdown',
-            )
-        else:
-            await update.message.reply_text(
-                f"❌ Error al vincular: _{msg[:100]}_",
-                parse_mode='Markdown',
-            )
+        await update.message.reply_text(
+            f"❌ {str(e)[:200]}",
+            parse_mode='Markdown',
+        )
 
 
 async def cmd_desvincular(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -187,7 +190,7 @@ async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/categorias — Gastos por categoría\n"
         "/ultimos [n] — Últimas transacciones (default 5)\n"
         "/borrar — Elimina la última transacción\n"
-        "/vincular email contraseña — Vincular cuenta\n"
+        "/vincular CODIGO — Vincular cuenta (código desde la app)\n"
         "/desvincular — Desvincular cuenta\n\n"
         "*Texto libre:*\n"
         "`netflix 45000` · `taxi 12.000` · `salario 3.500.000`\n\n"
@@ -386,7 +389,13 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         parsed = None
 
     if parsed is None:
-        await update.message.reply_text("¿Cuánto gastaste y en qué fue?")
+        await update.message.reply_text(
+            "No pude interpretar el monto. "
+            "¿Cuánto fue y en qué gastaste?\n\n"
+            "_Nota: el monto máximo es $100.000.000. "
+            "Si el monto es mayor, regístralo desde la app._",
+            parse_mode='Markdown',
+        )
         return
 
     try:

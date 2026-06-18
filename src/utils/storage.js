@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
+import { computeTotals } from './calculations'; // import estático (evita require() dinámico en async fn)
 
 const STORAGE_KEY = '@finance_data_v1';
 const STORAGE_MES_PREFIX = '@finance_mes_v1';
@@ -471,7 +472,6 @@ export async function computeRollover(mes) {
     if (!prevData) return { surplus: 0, prevMes };
 
     // Calcular ingresos presupuestados
-    const { computeTotals } = require('./calculations');
     const totals = computeTotals(prevData);
     if (!totals) return { surplus: 0, prevMes };
 
@@ -523,18 +523,33 @@ export async function aplicarTraspasoSobrante(mesActual) {
 
     if (balance <= 0) return { applied: false, prevMes, balance };
 
+    // Verificar duplicado usando subcategoria='rollover' en vez de descripción
+    // (más robusto: no falla si el usuario renombra la transacción)
     const currentTxs = await loadTransaccionesMes(mesActual);
     const exists = (currentTxs || []).some(tx =>
-      String(tx.descripcion || '').trim().toLowerCase() === desc.toLowerCase()
+      tx.subcategoria === 'rollover' && tx.tipo === 'ingreso'
     );
     if (exists) return { applied: false, prevMes, balance };
 
-    await registrarExtraordinario({
-      descripcion: desc,
+    // Insertar con subcategoria='rollover' para identificarlo de forma única
+    if (!supabase) throw new Error('Sin conexión a Supabase');
+    const uid = await getUserId();
+    if (!uid) throw new Error('Usuario no autenticado');
+    const _now = new Date();
+    const today = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
+
+    const { error } = await supabase.from('transacciones').insert({
+      user_id: uid,
+      tipo: 'ingreso',
       monto: balance,
       categoria: 'ahorro',
-      tipo: 'ingreso',
+      subcategoria: 'rollover',   // ← flag único — no depende de texto editable
+      descripcion: desc,
+      fecha: today,
+      fuente: 'app',
+      es_extraordinario: true,
     });
+    if (error) throw error;
 
     return { applied: true, prevMes, balance };
   } catch {

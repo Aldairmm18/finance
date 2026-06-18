@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { formatCOP } from '../utils/calculations';
+import { formatCOP, parseCOP } from '../utils/calculations';
 import { MASTER_CATEGORIES, CATEGORY_COLORS, normalizeCategoria } from '../utils/categoryTheme';
 import { supabase } from '../services/supabase';
 
@@ -51,7 +51,7 @@ export default function EditTransaccionModal({ transaction, onClose, onUpdated }
     if (!transaction) return;
     if (editSubmitting) return;
     Keyboard.dismiss();
-    const montoNum = parseFloat(String(editMonto).replace(/[^0-9.]/g, ''));
+    const montoNum = parseCOP(editMonto);
     if (!montoNum || montoNum <= 0) {
       Alert.alert('Monto inválido', 'Ingresa un monto válido.');
       return;
@@ -203,7 +203,7 @@ export default function EditTransaccionModal({ transaction, onClose, onUpdated }
           />
           {editMonto ? (
             <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
-              = {formatCOP(parseFloat(String(editMonto).replace(/[^0-9.]/g, '')) || 0)}
+              = {formatCOP(parseCOP(editMonto))}
             </Text>
           ) : (
             <View style={{ marginBottom: 14 }} />

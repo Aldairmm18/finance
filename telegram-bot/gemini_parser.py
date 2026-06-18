@@ -1,10 +1,16 @@
+"""
+Parser de transacciones financieras usando Groq (llama-3.3-70b-versatile).
+Mantiene los mismos nombres públicos (parse_message_gemini, GeminiParseError)
+para no requerir cambios en bot.py.
+"""
+
 import json
 import logging
 import os
 import re
 from typing import Any, Literal
 
-from google import genai
+from groq import Groq
 from pydantic import BaseModel, Field
 
 from categories import CATEGORY_LABELS, SUBCATEGORY_LABELS, KEYWORD_MAP, INGRESO_KEYWORDS, INGRESO_CATEGORIES
@@ -52,14 +58,16 @@ ALLOWED_SUBCATEGORIES = sorted(set(SUBCATEGORY_LABELS.keys()))
 
 logger = logging.getLogger(__name__)
 
-class GeminiTransaction(BaseModel):
+
+class GroqTransaction(BaseModel):
     monto: float = Field(..., description="Monto numérico de la transacción.")
     tipo: Literal["gasto", "ingreso"] = Field(..., description="Tipo de transacción.")
     categoria: Literal["Alimentación", "Transporte", "Servicios", "Ocio", "Salud", "Educación", "Otros"] = Field(
-        ..., description="Categoría permitida: Alimentación, Transporte, Servicios, Ocio, Salud, Educación u Otros."
+        ..., description="Categoría permitida."
     )
     descripcion: str = Field(..., description="Descripción breve de la transacción.")
     es_extraordinario: bool = Field(..., description="Si es un gasto extraordinario.")
+
 
 SYSTEM_PROMPT = (
     "Eres un asistente financiero experto. Tu tarea es extraer datos y devolver SOLO JSON válido.\n"
@@ -79,21 +87,23 @@ SYSTEM_PROMPT = (
 
 
 class GeminiParseError(Exception):
+    """Alias mantenido por compatibilidad con bot.py."""
     def __init__(self, message: str, response_text: str):
         super().__init__(message)
         self.response_text = response_text
 
 
-def _client() -> genai.Client:
-    api_key = os.getenv("GEMINI_API_KEY", "")
+def _client() -> Groq:
+    api_key = os.getenv("GROQ_API_KEY", "")
     if not api_key:
-        raise RuntimeError("Falta GEMINI_API_KEY en el entorno")
-    return genai.Client(api_key=api_key)
+        raise RuntimeError("Falta GROQ_API_KEY en el entorno")
+    return Groq(api_key=api_key)
+
 
 def _classify_from_text(lower: str) -> tuple[str, str]:
     for kw in sorted(KEYWORD_MAP.keys(), key=len, reverse=True):
         if len(kw) <= 3:
-            if re.search(r'\\b' + re.escape(kw) + r'\\b', lower):
+            if re.search(r'\b' + re.escape(kw) + r'\b', lower):
                 return KEYWORD_MAP[kw]
         else:
             if kw in lower:
@@ -177,8 +187,13 @@ def _validate_payload(payload: dict, text: str) -> dict | None:
     tipo = (tipo or _infer_tipo(lower, categoria)).lower()
     if tipo not in {"gasto", "ingreso"}:
         tipo = _infer_tipo(lower, categoria)
+
+    MAX_MONTO = 100_000_000  # 100 millones COP
     if monto is None or monto <= 0:
         return None
+    if monto > MAX_MONTO:
+        return None
+
     if sub_infer not in ALLOWED_SUBCATEGORIES:
         sub_infer = "otros"
 
@@ -193,36 +208,40 @@ def _validate_payload(payload: dict, text: str) -> dict | None:
 
 
 def parse_message_gemini(text: str) -> dict | None:
+    """
+    Parsea un mensaje de texto libre usando Groq (llama-3.3-70b-versatile).
+    Nombre mantenido por compatibilidad con bot.py.
+    """
     text = (text or "").strip()
     if not text:
         return None
 
     client = _client()
-    prompt = f"{SYSTEM_PROMPT}\n\nMensaje del usuario: {text}"
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=genai.types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_json_schema=GeminiTransaction.model_json_schema(),
-            temperature=0.2,
-        ),
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Mensaje del usuario: {text}"},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.2,
+        max_tokens=256,
     )
-    raw = getattr(response, "text", "") or ""
+
+    raw = response.choices[0].message.content or ""
     if not raw:
-        raise GeminiParseError("Respuesta vacía", raw)
+        raise GeminiParseError("Respuesta vacía de Groq", raw)
 
     try:
-        cleaned = raw.replace("```json", "").replace("```", "").strip()
+        cleaned = raw.strip()
         if "{" in cleaned and "}" in cleaned:
             cleaned = cleaned[cleaned.find("{"): cleaned.rfind("}") + 1]
         payload = json.loads(cleaned)
     except json.JSONDecodeError as e:
-        logger.error("Error parseando Gemini: %s. Raw response: %s", e, raw)
+        logger.error("Error parseando Groq: %s. Raw: %s", e, raw)
         raise GeminiParseError(f"JSON inválido: {e}", raw) from e
 
     if not isinstance(payload, dict):
-        logger.error("Error parseando Gemini: %s. Raw response: %s", "Respuesta no es JSON objeto", raw)
         raise GeminiParseError("Respuesta no es un objeto JSON", raw)
 
     return _validate_payload(payload, text)

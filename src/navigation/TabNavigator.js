@@ -47,7 +47,7 @@ export default function TabNavigator() {
     <Tab.Navigator
       tabBarPosition="bottom"
       screenOptions={({ route }) => ({
-        lazy: false,
+        lazy: true,
         swipeEnabled: true,
         tabBarStyle: {
           backgroundColor: C.card,
@@ -82,7 +82,8 @@ export default function TabNavigator() {
       })}
     >
       <Tab.Screen name="Dashboard"    component={DashboardScreen} />
-      <Tab.Screen name="Presupuesto"  component={PresupuestoScreen} />
+      {/* swipeEnabled:false evita navegar accidentalmente mientras se escriben montos */}
+      <Tab.Screen name="Presupuesto"  component={PresupuestoScreen} options={{ swipeEnabled: false }} />
       <Tab.Screen name="ResumenMes"   component={ResumenMesScreen} />
       <Tab.Screen name="FlujoMensual" component={FlujoMensualScreen} />
       <Tab.Screen name="Gastos"       component={GastosScreen} />

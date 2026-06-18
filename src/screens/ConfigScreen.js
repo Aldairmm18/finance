@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Switch, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, Switch, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Clipboard } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { syncData, getLastSync } from '../utils/storage';
+import { supabase } from '../services/supabase';
 
 const APP_VERSION = '1.0.0';
 
@@ -48,10 +50,67 @@ export default function ConfigScreen() {
   const [lastSync, setLastSync] = useState(null);
   const [syncError, setSyncError] = useState(null);
 
+  // ── Estado del token de vinculación Telegram ──
+  const [linkToken, setLinkToken] = useState(null);        // string de 6 dígitos
+  const [linkSecondsLeft, setLinkSecondsLeft] = useState(0);
+  const [linkGenerating, setLinkGenerating] = useState(false);
+  const countdownRef = useRef(null);
+
   // Cargar timestamp de la última sync al montar
   useEffect(() => {
     getLastSync().then(ts => setLastSync(ts));
   }, []);
+
+  // Countdown del token
+  useEffect(() => {
+    if (linkSecondsLeft <= 0) {
+      clearInterval(countdownRef.current);
+      if (linkToken) setLinkToken(null); // expirado
+      return;
+    }
+    countdownRef.current = setInterval(() => {
+      setLinkSecondsLeft(s => s - 1);
+    }, 1000);
+    return () => clearInterval(countdownRef.current);
+  }, [linkSecondsLeft]);
+
+  const generateLinkToken = useCallback(async () => {
+    if (!user || !supabase || linkGenerating) return;
+    setLinkGenerating(true);
+    try {
+      // Token de 6 dígitos aleatorio
+      const token = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+      // Invalidar tokens anteriores del usuario
+      await supabase.from('link_tokens')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('used', false);
+
+      // Insertar nuevo token
+      const { error } = await supabase.from('link_tokens').insert({
+        token,
+        user_id: user.id,
+        expires_at: expiresAt,
+        used: false,
+      });
+      if (error) throw error;
+
+      setLinkToken(token);
+      setLinkSecondsLeft(300); // 5 minutos
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'No se pudo generar el código. Intenta de nuevo.');
+    } finally {
+      setLinkGenerating(false);
+    }
+  }, [user, linkGenerating]);
+
+  const copyToken = useCallback(() => {
+    if (!linkToken) return;
+    Clipboard.setString(`/vincular ${linkToken}`);
+    Alert.alert('Copiado', 'El comando /vincular fue copiado al portapapeles.');
+  }, [linkToken]);
 
   const handleSync = useCallback(async () => {
     if (syncStatus === 'syncing') return;
@@ -188,6 +247,101 @@ export default function ConfigScreen() {
         <View style={[s.infoRow, { borderBottomWidth: 0 }]}>
           <Text style={[s.infoLabel, { color: C.textMuted }]}>Stack</Text>
           <Text style={[s.infoValue, { color: C.text }]}>React Native · Expo SDK 55</Text>
+        </View>
+      </View>
+
+      {/* ── Vincular Telegram ── */}
+      <View style={[s.section, { backgroundColor: C.card, borderColor: C.border }]}>
+        <Text style={[s.sectionTitle, { color: C.textMuted }]}>TELEGRAM</Text>
+
+        <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+          <Text style={{ fontSize: 13, color: C.textMuted, lineHeight: 19, marginBottom: 14 }}>
+            Genera un código de un solo uso para vincular el bot de Telegram.
+            {'\n'}Tu contraseña nunca sale de la app.
+          </Text>
+
+          {/* Token visible */}
+          {linkToken && linkSecondsLeft > 0 ? (
+            <View style={{
+              backgroundColor: C.bg,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: C.teal + '60',
+              padding: 16,
+              alignItems: 'center',
+              marginBottom: 12,
+            }}>
+              <Text style={{ fontSize: 11, color: C.textMuted, fontWeight: '700', letterSpacing: 1.2, marginBottom: 8 }}>
+                CÓDIGO DE VINCULACIÓN
+              </Text>
+              <Text style={{ fontSize: 36, fontWeight: '900', color: C.teal, letterSpacing: 8, marginBottom: 8 }}>
+                {linkToken}
+              </Text>
+              <Text style={{ fontSize: 12, color: C.textMuted }}>
+                Expira en {Math.floor(linkSecondsLeft / 60)}:{String(linkSecondsLeft % 60).padStart(2, '0')}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Instrucción */}
+          {linkToken && linkSecondsLeft > 0 ? (
+            <View style={{
+              backgroundColor: C.purple + '15',
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 12,
+            }}>
+              <Text style={{ fontSize: 12, color: C.text, lineHeight: 18 }}>
+                En el bot de Telegram escribe:{'\n'}
+                <Text style={{ fontWeight: '800', fontFamily: 'monospace', color: C.purple }}>
+                  /vincular {linkToken}
+                </Text>
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Botones */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              onPress={generateLinkToken}
+              disabled={linkGenerating}
+              style={{
+                flex: 1,
+                backgroundColor: C.teal,
+                borderRadius: 10,
+                paddingVertical: 12,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 6,
+                opacity: linkGenerating ? 0.7 : 1,
+              }}
+            >
+              {linkGenerating
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Ionicons name="refresh" size={16} color="#fff" />
+              }
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                {linkToken && linkSecondsLeft > 0 ? 'Nuevo código' : 'Generar código'}
+              </Text>
+            </TouchableOpacity>
+
+            {linkToken && linkSecondsLeft > 0 ? (
+              <TouchableOpacity
+                onPress={copyToken}
+                style={{
+                  backgroundColor: C.purple + '20',
+                  borderRadius: 10,
+                  paddingVertical: 12,
+                  paddingHorizontal: 14,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons name="copy-outline" size={18} color={C.purple} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       </View>
 

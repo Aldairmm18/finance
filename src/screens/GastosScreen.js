@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { PieChart } from 'react-native-chart-kit';
 import { loadTransaccionesMes, getCurrentMes } from '../utils/storage';
-import { formatCOP } from '../utils/calculations';
+import { formatCOP, parseCOP } from '../utils/calculations';
 import { getCategoryColor, getCategoryIcon } from '../utils/categoryTheme';
 import { useTheme } from '../context/ThemeContext';
 import { mesLabel, addMes } from '../utils/dateUtils';
@@ -103,7 +103,16 @@ export default function GastosScreen() {
   const [editDescripcion, setEditDescripcion] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
 
-  const listAnims = useRef([...Array(30)].map(() => new Animated.Value(0))).current;
+  // Búsqueda con debounce para evitar re-filtrar en cada keystroke
+  const [searchInput, setSearchInput] = useState('');
+
+  const listAnims = useRef([...Array(50)].map(() => new Animated.Value(0))).current;
+
+  // Debounce: actualizar `search` 200ms después del último keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 200);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const currentMes = getCurrentMes();
 
@@ -172,7 +181,7 @@ export default function GastosScreen() {
     if (!editingTransaction) return;
     if (editSubmitting) return;
     Keyboard.dismiss();
-    const montoNum = parseFloat(String(editMonto).replace(/[^0-9.]/g, ''));
+    const montoNum = parseCOP(editMonto);
     if (!montoNum || montoNum <= 0) {
       Alert.alert('Monto inválido', 'Ingresa un monto válido.');
       return;
@@ -304,12 +313,12 @@ export default function GastosScreen() {
           style={{ flex: 1, color: C.text, fontSize: 14, paddingVertical: 10 }}
           placeholder="Buscar descripción o categoría..."
           placeholderTextColor={C.textMuted}
-          value={search}
-          onChangeText={setSearch}
+          value={searchInput}
+          onChangeText={setSearchInput}
           returnKeyType="search"
         />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')} style={{ paddingLeft: 8 }}>
+        {searchInput.length > 0 && (
+          <TouchableOpacity onPress={() => { setSearchInput(''); setSearch(''); }} style={{ paddingLeft: 8 }}>
             <Text style={{ color: C.textMuted, fontSize: 16 }}>×</Text>
           </TouchableOpacity>
         )}
@@ -419,7 +428,7 @@ export default function GastosScreen() {
         <View style={{ height: 3, backgroundColor: C.teal }} />
         <View style={{ padding: 16, paddingBottom: filtered.length === 0 ? 16 : 8 }}>
           <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
-            Transacciones{search || catFiltro !== 'todos' || tipoFiltro !== 'todos' ? ' (filtradas)' : ''}
+            Transacciones{searchInput || catFiltro !== 'todos' || tipoFiltro !== 'todos' ? ' (filtradas)' : ''}
           </Text>
 
           {filtered.length === 0 ? (
@@ -428,7 +437,7 @@ export default function GastosScreen() {
               <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>
                 {txs.length === 0
                   ? 'Sin transacciones este mes.\nUsa el bot de Telegram o el\nbotón + del Dashboard.'
-                  : 'Sin resultados con estos filtros.'}
+                  : `Sin resultados${searchInput ? ` para "${searchInput}"` : ' con estos filtros'}.`}
               </Text>
             </View>
           ) : (
@@ -538,7 +547,7 @@ export default function GastosScreen() {
             />
             {editMonto ? (
               <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
-                = {formatCOP(parseFloat(String(editMonto).replace(/[^0-9.]/g, '')) || 0)}
+                = {formatCOP(parseCOP(editMonto))}
               </Text>
             ) : (
               <View style={{ marginBottom: 14 }} />

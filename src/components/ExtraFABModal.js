@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { registrarExtraordinario } from '../utils/storage';
-import { formatCOP } from '../utils/calculations';
+import { formatCOP, parseCOP } from '../utils/calculations';
 import { FAB_CATS_GASTO, FAB_CATS_INGRESO } from '../utils/categoryTheme';
 
 export default function ExtraFABModal({ visible, onClose, onSuccess }) {
@@ -84,7 +84,7 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
   const handleSubmit = async () => {
     Keyboard.dismiss();
     if (isSubmitting) return;
-    const montoNum = parseFloat(String(monto).replace(/[^0-9.]/g, ''));
+    const montoNum = parseCOP(monto);
     if (!descripcion.trim()) { setError('Ingresa una descripción'); return; }
     if (!montoNum || montoNum <= 0) { setError('Ingresa un monto válido'); return; }
     setError('');
@@ -208,7 +208,7 @@ export default function ExtraFABModal({ visible, onClose, onSuccess }) {
             />
             {monto ? (
               <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
-                = {formatCOP(parseFloat(String(monto).replace(/[^0-9.]/g, '')) || 0)}
+                = {formatCOP(parseCOP(monto))}
               </Text>
             ) : (
               <View style={{ marginBottom: 14 }} />

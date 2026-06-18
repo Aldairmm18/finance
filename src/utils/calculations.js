@@ -11,6 +11,38 @@ export function parseAmount(str) {
   return parseFloat(String(str).replace(/[^0-9.]/g, '')) || 0;
 }
 
+/**
+ * Parsea un monto en formato colombiano correctamente.
+ * "1.500.000" → 1500000  (punto = separador de miles en COP)
+ * "1.500"     → 1500
+ * "1.5"       → 1.5
+ * "1500000"   → 1500000
+ * "1.500,50"  → 1500.50  (coma = decimal)
+ */
+export function parseCOP(str) {
+  if (!str && str !== 0) return 0;
+  const s = String(str).trim();
+
+  // Si tiene coma: separador decimal colombiano ("1.500,50" → 1500.50)
+  if (s.includes(',')) {
+    return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+
+  // Múltiples puntos → todos son separadores de miles
+  const dots = (s.match(/\./g) || []).length;
+  if (dots > 1) {
+    return parseFloat(s.replace(/\./g, '')) || 0;
+  }
+
+  // Un punto seguido de exactamente 3 dígitos al final → separador de miles
+  if (/\.\d{3}$/.test(s)) {
+    return parseFloat(s.replace('.', '')) || 0;
+  }
+
+  // Caso normal: número sin formato o con punto decimal real
+  return parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
+}
+
 export function toMonthly(amount, periodicidad) {
   const p = PERIODICIDADES.find(p => p.value === periodicidad);
   const months = p ? p.months : 1;
@@ -57,6 +89,17 @@ export function mergeTransacciones(baseTotals, transacciones) {
     ingresosBySource: { ...base.ingresosBySource },
   };
 
+  // Categorías que se consideran esenciales al nivel de transacción individual.
+  // (Equivale al flag esencial:true del presupuesto, pero inferido por categoría)
+  const ESSENTIAL_CATS = new Set([
+    'hogar', 'Servicios',
+    'comida', 'Alimentación',
+    'transporte', 'Transporte',
+    'salud', 'Salud',
+    'familia', 'Familia',
+    'educacion', 'educación', 'Educación',
+  ]);
+
   for (const tx of transacciones) {
     const monto = Number(tx.monto) || 0;
     if (monto <= 0) continue;
@@ -69,8 +112,13 @@ export function mergeTransacciones(baseTotals, transacciones) {
       t.totalGastosMonthly += monto;
       const cat = tx.categoria || 'otro';
       t.gastosByCategory[cat] = (t.gastosByCategory[cat] || 0) + monto;
-      if (cat === 'creditos') t.creditosMonthly += monto;
-      else t.noEsencialesMonthly += monto;
+      if (cat === 'creditos' || cat === 'Créditos') {
+        t.creditosMonthly += monto;
+      } else if (ESSENTIAL_CATS.has(cat)) {
+        t.esencialesMonthly += monto;   // ← fix: antes nunca se sumaba aquí
+      } else {
+        t.noEsencialesMonthly += monto;
+      }
     }
   }
 

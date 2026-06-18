@@ -43,13 +43,65 @@ def _coerce_date(value: date | datetime | None) -> date:
 
 # ─── Multi-usuario ────────────────────────────────────────────────────────────
 
+def vincular_con_token(chat_id: int, token: str) -> str:
+    """
+    Vincula un chat_id usando un token de 6 dígitos generado desde la app.
+    No requiere que el usuario envíe su contraseña por Telegram.
+    Retorna el user_id vinculado.
+    """
+    token = token.strip()
+
+    # 1. Buscar el token en la tabla link_tokens
+    result = (
+        supabase.table('link_tokens')
+        .select('user_id, expires_at, used')
+        .eq('token', token)
+        .eq('used', False)
+        .maybe_single()
+        .execute()
+    )
+
+    if not result.data:
+        raise RuntimeError(
+            'Código inválido o ya utilizado. '
+            'Genera uno nuevo desde la app: Configuración → Vincular Telegram.'
+        )
+
+    row = result.data
+
+    # 2. Verificar expiración (comparar como strings ISO es válido si ambos son UTC)
+    now_iso = _now_co().isoformat()
+    if row['expires_at'] < now_iso:
+        raise RuntimeError(
+            'El código expiró (solo válido 5 minutos). '
+            'Genera uno nuevo desde la app.'
+        )
+
+    user_id = row['user_id']
+
+    # 3. Marcar el token como usado (one-time use)
+    supabase.table('link_tokens').update({'used': True}).eq('token', token).execute()
+
+    # 4. Guardar o actualizar el mapping chat_id → user_id
+    supabase.table('telegram_users').upsert(
+        {
+            'chat_id': chat_id,
+            'user_id': user_id,
+            'linked_at': _now_co().isoformat(),
+        },
+        on_conflict='chat_id',
+    ).execute()
+
+    return user_id
+
+
 def vincular_telegram(chat_id: int, email: str, password: str) -> str:
     """
-    Vincula un chat_id de Telegram con una cuenta de la app.
+    [DEPRECADO] Vincula enviando email+contraseña por el chat — inseguro.
+    Mantenido por compatibilidad. Usar vincular_con_token() en su lugar.
     Autentica con email/password via Supabase Auth y guarda el mapping.
     Retorna el user_id vinculado.
     """
-    # Autenticar via Supabase Auth
     auth_response = supabase.auth.sign_in_with_password({
         'email': email,
         'password': password,
