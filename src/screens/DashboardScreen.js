@@ -3,6 +3,7 @@ import React, {
   useMemo,
   useRef,
   useCallback,
+  useEffect,
 } from 'react';
 import {
   View,
@@ -102,6 +103,13 @@ export default function DashboardScreen() {
 
   const cardAnims = useRef([...Array(9)].map(() => new Animated.Value(0))).current;
 
+  // Guarda de vida: true mientras el componente esté montado. Permite que las
+  // recargas sin foco (mutaciones / eventos Realtime del bot) actualicen la UI,
+  // y evita setState tras desmontar. `g` es la guarda de foco opcional.
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  const alive = useCallback((g) => mountedRef.current && (!g || g.current !== false), []);
+
   const applyData = useCallback((d, txs, animate) => {
     const base = computeTotals(d);
     setTotals(mergeTransacciones(base, txs));
@@ -126,7 +134,7 @@ export default function DashboardScreen() {
         loadDataMesCache(mesActual),
         loadTransaccionesMesCache(mesActual),
       ]);
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       applyData(dC, txsC, true);
 
       // Fase 2: red en background → datos frescos
@@ -134,7 +142,7 @@ export default function DashboardScreen() {
         loadDataMes(mesActual),
         fetchTransaccionesMesRemote(mesActual),
       ]);
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       if (txsN !== null) {
         applyData(dN, txsN, false);
         setCloudStatus('synced');
@@ -153,7 +161,7 @@ export default function DashboardScreen() {
         })
         .catch(() => {});
     } catch {
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       setCloudStatus('error');
     }
   }, [applyData]);

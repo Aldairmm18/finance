@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -178,6 +178,12 @@ export default function ResumenMesScreen() {
 
   const cardAnims = useRef([...Array(8)].map(() => new Animated.Value(0))).current;
 
+  // Guarda de vida (ver Dashboard): permite que mutaciones y eventos Realtime
+  // refresquen la UI, evitando setState tras desmontar.
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  const alive = useCallback((g) => mountedRef.current && (!g || g.current !== false), []);
+
   const mes = getCurrentMes();
 
   // ── Load monthly data ──
@@ -201,7 +207,7 @@ export default function ResumenMesScreen() {
         loadDataMesCache(mes),
         loadTransaccionesMesCache(mes),
       ]);
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       applyMes(dC, txC, true);
 
       // Fase 2: red en background → datos frescos
@@ -209,7 +215,7 @@ export default function ResumenMesScreen() {
         loadDataMes(mes),
         fetchTransaccionesMesRemote(mes),
       ]);
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       if (txN !== null) {
         applyMes(dN, txN, false);
         setCloudStatus('synced');
@@ -217,7 +223,7 @@ export default function ResumenMesScreen() {
         setCloudStatus('error');
       }
     } catch {
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       setCloudStatus('error');
     }
   }, [applyMes]);
@@ -226,10 +232,10 @@ export default function ResumenMesScreen() {
     setAnioLoading(true);
     try {
       const data = await loadTransaccionesAnio(year);
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       setAnioTxs(data || []);
     } catch {
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       setAnioTxs([]);
     } finally {
       if (isMounted?.current) setAnioLoading(false);

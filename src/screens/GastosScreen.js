@@ -108,6 +108,12 @@ export default function GastosScreen() {
 
   const listAnims = useRef([...Array(50)].map(() => new Animated.Value(0))).current;
 
+  // Guarda de vida (ver Dashboard): permite que mutaciones y eventos Realtime
+  // refresquen la UI, evitando setState tras desmontar.
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  const alive = useCallback((g) => mountedRef.current && (!g || g.current !== false), []);
+
   // Debounce: actualizar `search` 200ms después del último keystroke
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 200);
@@ -133,16 +139,16 @@ export default function GastosScreen() {
     try {
       // Fase 1: caché local → render instantáneo
       const cached = await loadTransaccionesMesCache(mes);
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       applyTxs(cached, true);
       setLoading(false);
 
       // Fase 2: red en background → datos frescos (null = error, conserva lo mostrado)
       const fresh = await fetchTransaccionesMesRemote(mes);
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
       if (fresh !== null) applyTxs(fresh, false);
     } catch {
-      if (!isMounted?.current) return;
+      if (!alive(isMounted)) return;
     } finally {
       if (isMounted?.current) setLoading(false);
     }
