@@ -1,0 +1,24 @@
+#!/bin/sh
+# Pre-commit: corre ESLint sobre los .js/.jsx en stage.
+# Bloquea el commit si hay errores (principalmente no-undef → ReferenceError,
+# el tipo de bug que Metro NO detecta, como CAT_META o useEffect sin importar).
+# Para saltarlo en una emergencia: git commit --no-verify
+
+files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx)$' | grep -v '^dist/')
+
+if [ -z "$files" ]; then
+  exit 0
+fi
+
+echo "🔍 ESLint (no-undef) en archivos en stage..."
+npx eslint $files
+status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo ""
+  echo "❌ ESLint encontró errores. Corrígelos antes de commitear."
+  echo "   (emergencia: git commit --no-verify)"
+  exit 1
+fi
+
+exit 0
