@@ -95,42 +95,6 @@ def vincular_con_token(chat_id: int, token: str) -> str:
     return user_id
 
 
-def vincular_telegram(chat_id: int, email: str, password: str) -> str:
-    """
-    [DEPRECADO] Vincula enviando email+contraseña por el chat — inseguro.
-    Mantenido por compatibilidad. Usar vincular_con_token() en su lugar.
-    Autentica con email/password via Supabase Auth y guarda el mapping.
-    Retorna el user_id vinculado.
-    """
-    auth_response = supabase.auth.sign_in_with_password({
-        'email': email,
-        'password': password,
-    })
-    user = auth_response.user
-    if not user:
-        raise RuntimeError('No se pudo autenticar. Verifica tu email y contraseña.')
-
-    user_id = user.id
-
-    # Guardar o actualizar el mapping chat_id → user_id
-    supabase.table('telegram_users').upsert(
-        {
-            'chat_id': chat_id,
-            'user_id': user_id,
-            'linked_at': _now_co().isoformat(),
-        },
-        on_conflict='chat_id',
-    ).execute()
-
-    # Cerrar la sesión del bot (no necesita mantenerla)
-    try:
-        supabase.auth.sign_out()
-    except Exception:
-        pass
-
-    return user_id
-
-
 def desvincular_telegram(chat_id: int) -> bool:
     """Desvincula un chat_id. Retorna True si había un registro."""
     result = (

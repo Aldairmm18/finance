@@ -11,6 +11,8 @@ import logging
 import os
 import sys
 import threading
+import time
+from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # Python 3.14 en Windows: forzar SelectorEventLoop para compatibilidad con httpcore/anyio
@@ -39,6 +41,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+
+# ─── Rate limit para /vincular (anti fuerza bruta de códigos de 6 dígitos) ────
+_vincular_attempts = defaultdict(list)  # chat_id -> [timestamps de intentos]
+VINCULAR_MAX_ATTEMPTS = 5
+VINCULAR_WINDOW_SEC = 300  # 5 minutos
+
+
+def _vincular_rate_limited(chat_id: int) -> bool:
+    """True si el chat superó el máximo de intentos en la ventana de tiempo."""
+    now = time.time()
+    attempts = _vincular_attempts[chat_id]
+    attempts[:] = [t for t in attempts if now - t < VINCULAR_WINDOW_SEC]
+    if len(attempts) >= VINCULAR_MAX_ATTEMPTS:
+        return True
+    attempts.append(now)
+    return False
 
 
 # ─── Render dummy web server (binds $PORT) ────────────────────────────────────
@@ -144,6 +162,12 @@ async def cmd_vincular(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     token = ctx.args[0].strip()
+
+    if _vincular_rate_limited(chat_id):
+        await update.message.reply_text(
+            "⏳ Demasiados intentos de vinculación. Espera unos minutos e inténtalo de nuevo."
+        )
+        return
 
     try:
         user_id = db.vincular_con_token(chat_id, token)
