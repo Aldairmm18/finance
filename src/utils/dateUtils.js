@@ -41,21 +41,31 @@ export function addMes(mes, delta) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 }
 
-/** Primer y último día de un mes "YYYY-MM" como "YYYY-MM-DD". */
+/**
+ * Rango de un mes "YYYY-MM": primer día, último día y primer día del mes
+ * siguiente (límite exclusivo, necesario porque `fecha` puede traer hora).
+ */
 export function monthRange(mes) {
   const [y, m] = mes.split('-').map(Number);
   const lastDay = new Date(y, m, 0).getDate();
-  return { start: `${y}-${pad(m)}-01`, end: `${y}-${pad(m)}-${pad(lastDay)}` };
+  return { start: `${y}-${pad(m)}-01`, end: `${y}-${pad(m)}-${pad(lastDay)}`, next: `${addMes(mes, 1)}-01` };
+}
+
+/** Solo la parte de día de una fecha de la base ("2026-10-11T00:00:00+00" → "2026-10-11"). */
+export function dayKey(fecha) {
+  return String(fecha || '').slice(0, 10);
 }
 
 /** "Hoy", "Ayer" o "12 oct" para una fecha "YYYY-MM-DD". */
-export function dayLabel(fecha) {
+export function dayLabel(value) {
+  const fecha = dayKey(value);
   if (!fecha) return '';
   const today = localISODate();
   const yesterday = localISODate(new Date(Date.now() - 86400000));
   if (fecha === today) return 'Hoy';
   if (fecha === yesterday) return 'Ayer';
   const [, m, d] = fecha.split('-').map(Number);
+  if (!m || !d) return '';
   return `${d} ${MONTHS_SHORT[m - 1] || ''}`;
 }
 

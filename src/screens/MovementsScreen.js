@@ -6,9 +6,9 @@ import { useTheme } from '../context/ThemeContext';
 import { useMonthData } from '../hooks/useMonthData';
 import { useTransactionSheet } from '../components/TransactionSheet';
 import TransactionRow from '../components/TransactionRow';
-import { Txt, Money, Chip, MonthSwitcher, EmptyState, Divider } from '../components/ui';
+import { Txt, Money, Chip, MonthSwitcher, EmptyState, Divider, StatusBarBackdrop } from '../components/ui';
 import { normalizeCategory, categoryLabel } from '../utils/categories';
-import { getCurrentMes, dayLabel } from '../utils/dateUtils';
+import { getCurrentMes, dayLabel, dayKey } from '../utils/dateUtils';
 import { SPACE, RADIUS } from '../theme/tokens';
 
 const TIPOS = [
@@ -67,7 +67,7 @@ export default function MovementsScreen() {
   const sections = useMemo(() => {
     const byDay = new Map();
     for (const tx of filtered) {
-      const key = tx.fecha || '';
+      const key = dayKey(tx.fecha);
       if (!byDay.has(key)) byDay.set(key, []);
       byDay.get(key).push(tx);
     }
@@ -135,38 +135,41 @@ export default function MovementsScreen() {
   );
 
   return (
-    <SectionList
-      style={{ flex: 1, backgroundColor: C.bg }}
-      contentContainerStyle={{ paddingHorizontal: SPACE.lg, paddingBottom: SPACE.xxl * 2 }}
-      sections={sections}
-      keyExtractor={(tx, i) => String(tx.id ?? i)}
-      ListHeaderComponent={header}
-      stickySectionHeadersEnabled={false}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.textMuted} colors={[C.brand]} />}
-      renderSectionHeader={({ section }) => (
-        <Txt variant="label" muted style={{ marginTop: SPACE.xl, marginBottom: SPACE.xs }}>{section.title}</Txt>
-      )}
-      renderItem={({ item, index }) => (
-        <View>
-          {index > 0 ? <Divider inset={48} /> : null}
-          <TransactionRow tx={item} onPress={openEdit} showDate={false} />
-        </View>
-      )}
-      ListEmptyComponent={!loaded ? (
-        <ActivityIndicator color={C.textMuted} style={{ marginTop: SPACE.xxl }} />
-      ) : filtering ? (
-        <EmptyState icon="search-outline" title="Sin resultados" body="Prueba con otra búsqueda o quita los filtros." />
-      ) : (
-        <EmptyState
-          icon="receipt-outline"
-          title="Sin movimientos en este mes"
-          body="Lo que registres con el botón + o por el bot de Telegram aparece aquí."
-          actionLabel={mes === currentMes ? 'Registrar movimiento' : undefined}
-          onAction={() => openNew('gasto')}
-        />
-      )}
-    />
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <SectionList
+        style={{ flex: 1, backgroundColor: C.bg }}
+        contentContainerStyle={{ paddingHorizontal: SPACE.lg, paddingBottom: SPACE.xxl * 2 }}
+        sections={sections}
+        keyExtractor={(tx, i) => String(tx.id ?? i)}
+        ListHeaderComponent={header}
+        stickySectionHeadersEnabled={false}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.textMuted} colors={[C.brand]} />}
+        renderSectionHeader={({ section }) => (
+          <Txt variant="label" muted style={{ marginTop: SPACE.xl, marginBottom: SPACE.xs }}>{section.title}</Txt>
+        )}
+        renderItem={({ item, index }) => (
+          <View>
+            {index > 0 ? <Divider inset={48} /> : null}
+            <TransactionRow tx={item} onPress={openEdit} showDate={false} />
+          </View>
+        )}
+        ListEmptyComponent={!loaded ? (
+          <ActivityIndicator color={C.textMuted} style={{ marginTop: SPACE.xxl }} />
+        ) : filtering ? (
+          <EmptyState icon="search-outline" title="Sin resultados" body="Prueba con otra búsqueda o quita los filtros." />
+        ) : (
+          <EmptyState
+            icon="receipt-outline"
+            title="Sin movimientos en este mes"
+            body="Lo que registres con el botón + o por el bot de Telegram aparece aquí."
+            actionLabel={mes === currentMes ? 'Registrar movimiento' : undefined}
+            onAction={() => openNew('gasto')}
+          />
+        )}
+      />
+      <StatusBarBackdrop />
+    </View>
   );
 }

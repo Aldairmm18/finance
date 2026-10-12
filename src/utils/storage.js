@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
-import { getCurrentMes, localISODate, monthRange, addMes } from './dateUtils';
+import { getCurrentMes, localISODate, monthRange, addMes, dayKey } from './dateUtils';
 
 export { getCurrentMes };
 
@@ -307,7 +307,8 @@ export async function getLastSync() {
 
 // ─── Movimientos ─────────────────────────────────────────────────────────────
 
-async function fetchRange(start, end, ms = 6000) {
+/** Movimientos con fecha en [start, endExclusive). */
+async function fetchRange(start, endExclusive, ms = 6000) {
   const uid = await getUserId();
   if (!supabase || !uid) return null;
   try {
@@ -317,12 +318,13 @@ async function fetchRange(start, end, ms = 6000) {
         .select('*')
         .eq('user_id', uid)
         .gte('fecha', start)
-        .lte('fecha', end)
+        .lt('fecha', endExclusive)
         .order('fecha', { ascending: false }),
       ms,
     );
     if (error) return null;
-    return data || [];
+    // `fecha` puede venir con hora (timestamp); la app trabaja con el día.
+    return (data || []).map(row => ({ ...row, fecha: dayKey(row.fecha) }));
   } catch {
     return null;
   }
@@ -338,15 +340,15 @@ export async function loadTransaccionesMesCache(mes = getCurrentMes()) {
  * sesión (para distinguir "error" de "0 movimientos"), [] si está vacío.
  */
 export async function fetchTransaccionesMesRemote(mes = getCurrentMes()) {
-  const { start, end } = monthRange(mes);
-  const rows = await fetchRange(start, end);
+  const { start, next } = monthRange(mes);
+  const rows = await fetchRange(start, next);
   if (rows) await writeJSON(`${STORAGE_TXS_PREFIX}_${mes}`, rows);
   return rows;
 }
 
 /** Movimientos de un año completo. null si falla la red. */
 export function loadTransaccionesAnio(year = new Date().getFullYear()) {
-  return fetchRange(`${year}-01-01`, `${year}-12-31`, 10000);
+  return fetchRange(`${year}-01-01`, `${year + 1}-01-01`, 10000);
 }
 
 export async function addTransaction({ tipo, monto, categoria, descripcion, fecha }) {

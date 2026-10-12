@@ -51,17 +51,32 @@ export function Screen({ children, scroll = true, refreshing, onRefresh, content
     return <View style={[{ flex: 1, backgroundColor: C.bg }, padding, contentStyle]}>{children}</View>;
   }
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: C.bg }}
-      contentContainerStyle={[padding, contentStyle]}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps={keyboardShouldPersistTaps}
-      refreshControl={onRefresh ? (
-        <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={C.textMuted} colors={[C.brand]} />
-      ) : undefined}
-    >
-      {children}
-    </ScrollView>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[padding, contentStyle]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        refreshControl={onRefresh ? (
+          <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={C.textMuted} colors={[C.brand]} />
+        ) : undefined}
+      >
+        {children}
+      </ScrollView>
+      {withTopInset ? <StatusBarBackdrop /> : null}
+    </View>
+  );
+}
+
+/** Fondo bajo la barra de estado para que el contenido no se vea detrás de la hora al hacer scroll. */
+export function StatusBarBackdrop() {
+  const { colors: C } = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      pointerEvents="none"
+      style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: C.bg }}
+    />
   );
 }
 

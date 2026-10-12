@@ -3,7 +3,7 @@ import { View, Alert, Keyboard, TextInput } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { Sheet, Txt, Field, Chip, Segmented, Button } from './ui';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, normalizeCategory } from '../utils/categories';
-import { localISODate, dayLabel } from '../utils/dateUtils';
+import { localISODate, dayLabel, dayKey } from '../utils/dateUtils';
 import { addTransaction, updateTransaction, deleteTransaction } from '../utils/storage';
 import { notifyTransactionsChanged } from '../hooks/useRealtimeSync';
 import { SPACE, NUM } from '../theme/tokens';
@@ -33,7 +33,7 @@ function TransactionSheet({ state, onClose }) {
     setMonto(tx ? digitsOnly(Math.round(Number(tx.monto) || 0)) : '');
     setDescripcion(tx?.descripcion || '');
     setCategoria(tx ? normalizeCategory(tx.categoria) : (t === 'ingreso' ? 'salario' : 'comida'));
-    setFecha(tx?.fecha || localISODate());
+    setFecha(tx?.fecha ? dayKey(tx.fecha) : localISODate());
     setRecentDays([localISODate(), localISODate(new Date(Date.now() - 86400000))]);
     setError('');
     setBusy(false);
