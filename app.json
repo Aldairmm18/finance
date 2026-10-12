@@ -1,27 +1,47 @@
 {
   "expo": {
-    "name": "finance",
+    "name": "Finance",
     "slug": "finance",
+    "scheme": "finance-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F6F5F1",
+      "dark": {
+        "image": "./assets/splash-icon-dark.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#121513"
+      }
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aldairmm24.finance",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F7E9C6",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.aldairmm24.finance"
+      "package": "com.aldairmm24.finance",
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM"
+      ],
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,15 +51,18 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
-          "color": "#E6F4FE"
+          "icon": "./assets/notification-icon.png",
+          "color": "#1F4D3F"
         }
-      ]
+      ],
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "extra": {
       "eas": {
         "projectId": "6a8c920b-bd72-4d42-a335-d3cbc976a831"
       }
-    }
+    },
+    "description": "Planea tu mes, registra lo que gastas y mira cuánto te queda."
   }
 }

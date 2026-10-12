@@ -51,3 +51,8 @@ prompt*.md
 prompt*.txt
 contexto-*.md
 *.prompt
+
+# Respaldos locales y configuración local de Claude Code
+backups/
+.claude/
+skills-lock.json

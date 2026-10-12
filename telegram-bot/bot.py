@@ -106,9 +106,10 @@ async def _require_linked(update: Update) -> str | None:
         await update.message.reply_text(
             "⚠️ *No estás vinculado a una cuenta.*\n\n"
             "Para usar el bot necesitas una cuenta en la app Finance.\n\n"
-            "1️⃣ Regístrate en la app\n"
-            "2️⃣ Vincula tu Telegram con:\n"
-            "`/vincular tu@email.com tuContraseña`\n\n"
+            "1️⃣ En la app, ve a Ajustes → Bot de Telegram\n"
+            "2️⃣ Toca *Generar código*\n"
+            "3️⃣ Envía aquí: `/vincular 123456`\n\n"
+            "Nunca envíes tu contraseña por chat.\n\n"
             "_Tus datos quedarán sincronizados entre la app y el bot._",
             parse_mode='Markdown',
         )
@@ -195,7 +196,7 @@ async def cmd_desvincular(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🔓 *Cuenta desvinculada.*\n"
             "Ya no se registrarán transacciones desde este chat.\n"
-            "Usa `/vincular email contraseña` para volver a vincular.",
+            "Para volver a vincular, genera un código en la app y envía `/vincular CODIGO`.",
             parse_mode='Markdown',
         )
     else:

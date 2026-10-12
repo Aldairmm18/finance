@@ -1,440 +1,289 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  TextInput,
-  Alert,
-  ScrollView,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  RefreshControl,
-} from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { View, Alert, Pressable, ActivityIndicator, TextInput } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { recurringPaymentService } from '../services/recurringPaymentService';
 import { notificationService } from '../services/notificationService';
 import { subcategoryService } from '../services/subcategoryService';
-import { MASTER_CATEGORIES, getCategoryColor, getCategoryIcon } from '../utils/categoryTheme';
-import { formatCOP } from '../utils/calculations';
+import {
+  Screen, Txt, Money, Card, Divider, Sheet, Field, Chip, Button, EmptyState, IconBadge, IconButton,
+} from '../components/ui';
+import { EXPENSE_CATEGORIES, normalizeCategory, categoryIcon, categoryColor, categoryLabel } from '../utils/categories';
+import { nextMonthlyDate, dayLabel, localISODate } from '../utils/dateUtils';
+import { SPACE, RADIUS } from '../theme/tokens';
 
-// ─── Componente de ítem ───────────────────────────────────────────────────────
+const NOTIFY_OPTIONS = [1, 3, 5, 7];
+const digitsOnly = (v) => String(v ?? '').replace(/\D/g, '');
+const groupDigits = (d) => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
-function PaymentItem({ item, onLongPress, colors: C }) {
-  const color = getCategoryColor(item.category_key);
-  const iconName = item.subcategories?.icon ?? getCategoryIcon(item.category_key);
+// ─── Formulario ──────────────────────────────────────────────────────────────
 
-  return (
-    <TouchableOpacity
-      onLongPress={() => onLongPress(item)}
-      activeOpacity={0.7}
-      style={{
-        backgroundColor: C.card,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: C.border,
-        padding: 16,
-        marginBottom: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-      }}
-    >
-      {/* Ícono */}
-      <View style={{
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: color + '20',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 14,
-      }}>
-        <MaterialCommunityIcons name={iconName} size={22} color={color} />
-      </View>
+function PaymentSheet({ state, userId, onClose, onSaved }) {
+  const { colors: C } = useTheme();
+  const editing = state?.payment || null;
 
-      {/* Info */}
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 15, fontWeight: '700', color: C.text }}>{item.name}</Text>
-        <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
-          Día {item.day_of_month} del mes · Notifica {item.notify_days_before ?? 3} días antes
-        </Text>
-        {item.subcategories?.name && (
-          <Text style={{ fontSize: 11, color: color, marginTop: 2, fontWeight: '600' }}>
-            {item.subcategories.name}
-          </Text>
-        )}
-      </View>
-
-      {/* Monto */}
-      <Text style={{ fontSize: 15, fontWeight: '800', color: C.pink }}>
-        {formatCOP(item.amount)}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-// ─── Modal de creación / edición ─────────────────────────────────────────────
-
-function PaymentFormModal({ visible, editData, userId, onClose, onSaved, colors: C }) {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
-  const [categoryKey, setCategoryKey] = useState('');
+  const [category, setCategory] = useState('hogar');
   const [subcategoryId, setSubcategoryId] = useState(null);
-  const [dayOfMonth, setDayOfMonth] = useState('');
-  const [notifyDaysBefore, setNotifyDaysBefore] = useState('3');
-  const [subcats, setSubcats] = useState([]);
-  const [isSaving, setIsSaving] = useState(false);
+  const [day, setDay] = useState('');
+  const [notifyDays, setNotifyDays] = useState(3);
+  const [allSubcats, setAllSubcats] = useState([]);
+  const [newSubcat, setNewSubcat] = useState(null); // null = cerrado, string = escribiendo
+  const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
 
-  // Pre-cargar al abrir
-  React.useEffect(() => {
-    if (!visible) return;
-    if (editData) {
-      setName(editData.name ?? '');
-      setAmount(String(editData.amount ?? ''));
-      setCategoryKey(editData.category_key ?? '');
-      setSubcategoryId(editData.subcategory_id ?? null);
-      setDayOfMonth(String(editData.day_of_month ?? ''));
-      setNotifyDaysBefore(String(editData.notify_days_before ?? '3'));
-    } else {
-      setName('');
-      setAmount('');
-      setCategoryKey('');
-      setSubcategoryId(null);
-      setDayOfMonth('');
-      setNotifyDaysBefore('3');
-    }
-    setIsSaving(false);
-  }, [visible, editData]);
+  useEffect(() => {
+    if (!state) return;
+    setName(editing?.name || '');
+    setAmount(editing ? digitsOnly(Math.round(Number(editing.amount) || 0)) : '');
+    setCategory(editing ? normalizeCategory(editing.category_key) : 'hogar');
+    setSubcategoryId(editing?.subcategory_id || null);
+    setDay(editing ? String(editing.day_of_month) : '');
+    setNotifyDays(editing?.notify_days_before ?? 3);
+    setNewSubcat(null);
+    setErrors({});
+    setBusy(false);
+    if (userId) subcategoryService.getAll(userId).then(s => setAllSubcats(s || [])).catch(() => setAllSubcats([]));
+  }, [state, editing, userId]);
 
-  // Cargar subcategorías cuando cambia la categoría
-  React.useEffect(() => {
-    if (!categoryKey || !userId) { setSubcats([]); return; }
-    subcategoryService.getByCategory(userId, categoryKey)
-      .then(data => setSubcats(data ?? []))
-      .catch(() => setSubcats([]));
-  }, [categoryKey, userId]);
+  // Las subcategorías antiguas pueden tener claves "master" (p. ej. Servicios).
+  const subcats = useMemo(
+    () => allSubcats.filter(s => normalizeCategory(s.category_key) === category),
+    [allSubcats, category],
+  );
 
-  const handleSave = async () => {
-    if (!name.trim()) { Alert.alert('Campo requerido', 'Ingresa el nombre del pago.'); return; }
-    const amountNum = parseFloat(String(amount).replace(/[^0-9.]/g, ''));
-    if (!amountNum || amountNum <= 0) { Alert.alert('Monto inválido', 'Ingresa un monto válido.'); return; }
-    const day = parseInt(dayOfMonth, 10);
-    if (!day || day < 1 || day > 31) { Alert.alert('Día inválido', 'El día debe estar entre 1 y 31.'); return; }
-    if (!categoryKey) { Alert.alert('Categoría requerida', 'Selecciona una categoría.'); return; }
-
-    setIsSaving(true);
+  const addSubcat = async () => {
+    const label = (newSubcat || '').trim();
+    if (!label) { setNewSubcat(null); return; }
     try {
-      const payload = {
-        name: name.trim(),
-        amount: amountNum,
-        category_key: categoryKey,
-        subcategory_id: subcategoryId || null,
-        day_of_month: day,
-        notify_days_before: parseInt(notifyDaysBefore, 10) || 3,
-      };
-      if (editData) {
-        await recurringPaymentService.update(editData.id, payload);
-      } else {
-        await recurringPaymentService.create(userId, payload);
-      }
-      await onSaved();
-      onClose();
+      const created = await subcategoryService.create(userId, {
+        name: label,
+        category_key: category,
+        icon: 'tag-outline',
+        color: categoryColor(category, 'light'),
+      });
+      setAllSubcats(prev => [...prev, created]);
+      setSubcategoryId(created.id);
+      setNewSubcat(null);
     } catch (e) {
-      Alert.alert('Error', e?.message || 'No se pudo guardar el pago.');
-      setIsSaving(false);
+      Alert.alert('No se pudo crear la subcategoría', e?.message || 'Intenta de nuevo.');
     }
   };
 
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} activeOpacity={1} onPress={onClose} />
-        <View style={{
-          backgroundColor: C.card,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          padding: 24,
-          paddingBottom: 40,
-          borderTopWidth: 1,
-          borderColor: C.border,
-          maxHeight: '90%',
-        }}>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* Header */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={{ fontSize: 17, fontWeight: '800', color: C.text }}>
-                {editData ? 'Editar pago' : 'Nuevo pago recurrente'}
-              </Text>
-              <TouchableOpacity onPress={onClose}>
-                <Text style={{ fontSize: 22, color: C.textMuted }}>×</Text>
-              </TouchableOpacity>
-            </View>
+  const save = async () => {
+    const amountNum = Number(amount) || 0;
+    const dayNum = parseInt(day, 10);
+    const next = {};
+    if (!name.trim()) next.name = 'Escribe un nombre.';
+    if (amountNum <= 0) next.amount = 'Escribe un monto mayor que cero.';
+    if (!dayNum || dayNum < 1 || dayNum > 31) next.day = 'Elige un día entre 1 y 31.';
+    setErrors(next);
+    if (Object.keys(next).length) return;
 
-            {/* Nombre */}
-            <Text style={lbl(C)}>Nombre</Text>
-            <TextInput style={inp(C)} placeholder="Ej: Netflix, Plan de datos..." placeholderTextColor={C.textMuted}
-              value={name} onChangeText={setName} returnKeyType="done" editable={!isSaving} />
-
-            {/* Monto */}
-            <Text style={lbl(C)}>Monto</Text>
-            <TextInput style={inp(C)} placeholder="0" placeholderTextColor={C.textMuted}
-              value={amount} onChangeText={v => setAmount(v.replace(/[^0-9.]/g, ''))}
-              keyboardType="numeric" returnKeyType="done" editable={!isSaving} />
-
-            {/* Categoría */}
-            <Text style={lbl(C)}>Categoría</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-              {MASTER_CATEGORIES.map(cat => {
-                const isSelected = categoryKey === cat;
-                const color = getCategoryColor(cat);
-                return (
-                  <TouchableOpacity key={cat} onPress={() => { setCategoryKey(cat); setSubcategoryId(null); }}
-                    style={{
-                      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-                      backgroundColor: isSelected ? color : C.bg,
-                      borderWidth: 1, borderColor: isSelected ? color : C.border,
-                    }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: isSelected ? '#fff' : C.textMuted }}>{cat}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Subcategoría (opcional) */}
-            {subcats.length > 0 && (
-              <>
-                <Text style={lbl(C)}>Subcategoría (opcional)</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                  <TouchableOpacity onPress={() => setSubcategoryId(null)}
-                    style={{
-                      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-                      backgroundColor: !subcategoryId ? C.teal : C.bg,
-                      borderWidth: 1, borderColor: !subcategoryId ? C.teal : C.border,
-                    }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: !subcategoryId ? '#fff' : C.textMuted }}>Ninguna</Text>
-                  </TouchableOpacity>
-                  {subcats.map(s => {
-                    const isSel = subcategoryId === s.id;
-                    return (
-                      <TouchableOpacity key={s.id} onPress={() => setSubcategoryId(s.id)}
-                        style={{
-                          paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-                          backgroundColor: isSel ? s.color : C.bg,
-                          borderWidth: 1, borderColor: isSel ? s.color : C.border,
-                        }}>
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: isSel ? '#fff' : C.textMuted }}>{s.name}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </>
-            )}
-
-            {/* Día del mes */}
-            <Text style={lbl(C)}>Día del mes en que se cobra (1–31)</Text>
-            <TextInput style={inp(C)} placeholder="Ej: 15" placeholderTextColor={C.textMuted}
-              value={dayOfMonth} onChangeText={v => setDayOfMonth(v.replace(/[^0-9]/g, ''))}
-              keyboardType="number-pad" returnKeyType="done" editable={!isSaving} />
-
-            {/* Días anticipación */}
-            <Text style={lbl(C)}>Días de anticipación para notificar</Text>
-            <TextInput style={inp(C)} placeholder="3" placeholderTextColor={C.textMuted}
-              value={notifyDaysBefore} onChangeText={v => setNotifyDaysBefore(v.replace(/[^0-9]/g, ''))}
-              keyboardType="number-pad" returnKeyType="done" editable={!isSaving} />
-
-            {/* Botones */}
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-              <TouchableOpacity onPress={onClose} disabled={isSaving}
-                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border }}>
-                <Text style={{ color: C.textMuted, fontWeight: '700', fontSize: 15 }}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleSave} disabled={isSaving}
-                style={{ flex: 2, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: C.teal, opacity: isSaving ? 0.7 : 1 }}>
-                {isSaving
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>
-                      {editData ? 'Actualizar' : 'Guardar'}
-                    </Text>
-                }
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-// ─── Pantalla principal ───────────────────────────────────────────────────────
-
-export default function RecurringPaymentsScreen() {
-  const { colors: C } = useTheme();
-  const { user } = useAuth();
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editData, setEditData] = useState(null);
-
-  const [refreshing, setRefreshing] = useState(false);
-
-  const loadPayments = useCallback(async (isMounted, showSpinner = true) => {
-    if (!user) return;
-    // Solo aborta si el componente perdió foco/se desmontó; las llamadas sin
-    // arg (crear/eliminar/refrescar) sí actualizan la lista.
-    const active = () => !isMounted || isMounted.current !== false;
-    if (showSpinner) setLoading(true);
+    setBusy(true);
+    const payload = {
+      name: name.trim(),
+      amount: amountNum,
+      category_key: category,
+      subcategory_id: subcategoryId || null,
+      day_of_month: dayNum,
+      notify_days_before: notifyDays,
+    };
     try {
-      const data = await recurringPaymentService.getAll(user.id);
-      if (!active()) return;
-      setPayments(data ?? []);
-      await notificationService.rescheduleAll(data ?? []);
+      if (editing) await recurringPaymentService.update(editing.id, payload);
+      else await recurringPaymentService.create(userId, payload);
+      await onSaved();
+      onClose();
     } catch (e) {
-      if (!active()) return;
-      Alert.alert('Error', 'No se pudieron cargar los pagos recurrentes.');
-    } finally {
-      if (active()) setLoading(false);
+      setBusy(false);
+      Alert.alert('No se pudo guardar', e?.message || 'Intenta de nuevo.');
     }
-  }, [user]);
+  };
 
-  useFocusEffect(useCallback(() => {
-    const isMounted = { current: true };
-    loadPayments(isMounted);
-    return () => { isMounted.current = false; };
-  }, [loadPayments]));
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try { await loadPayments(undefined, false); } finally { setRefreshing(false); }
-  }, [loadPayments]);
-
-  const handleLongPress = (item) => {
-    Alert.alert(item.name, '¿Qué deseas hacer?', [
-      {
-        text: 'Editar', onPress: () => {
-          setEditData(item);
-          setModalVisible(true);
-        },
-      },
+  const confirmDelete = () => {
+    Alert.alert('Eliminar pago fijo', `Dejarás de recibir recordatorios de ${editing.name}.`, [
+      { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
+          setBusy(true);
           try {
-            await recurringPaymentService.delete(item.id);
-            await loadPayments();
+            await recurringPaymentService.delete(editing.id);
+            await onSaved();
+            onClose();
           } catch (e) {
-            Alert.alert('Error', e?.message || 'No se pudo eliminar el pago.');
+            setBusy(false);
+            Alert.alert('No se pudo eliminar', e?.message || 'Intenta de nuevo.');
           }
         },
       },
-      { text: 'Cancelar', style: 'cancel' },
     ]);
   };
 
-  const openCreate = () => {
-    setEditData(null);
-    setModalVisible(true);
-  };
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* Header */}
-      <View style={{
-        paddingHorizontal: 20,
-        paddingTop: 52,
-        paddingBottom: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <Text style={{ fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: -0.5 }}>
-          Pagos recurrentes
-        </Text>
-        <View style={{
-          backgroundColor: C.teal + '20',
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          borderRadius: 20,
-        }}>
-          <Text style={{ fontSize: 12, color: C.teal, fontWeight: '700' }}>
-            {payments.length} activos
-          </Text>
+    <Sheet
+      visible={!!state}
+      onClose={busy ? () => {} : onClose}
+      title={editing ? 'Editar pago fijo' : 'Nuevo pago fijo'}
+      footer={(
+        <View style={{ gap: SPACE.sm }}>
+          <Button title={editing ? 'Guardar cambios' : 'Guardar pago'} onPress={save} loading={busy} />
+          {editing ? <Button title="Eliminar" variant="danger" onPress={confirmDelete} disabled={busy} /> : null}
         </View>
+      )}
+    >
+      <Field label="Nombre" value={name} onChangeText={setName} placeholder="Netflix, plan de celular…" error={errors.name} maxLength={60} />
+      <Field
+        label="Monto"
+        value={amount ? `$${groupDigits(amount)}` : ''}
+        onChangeText={v => setAmount(digitsOnly(v).slice(0, 12))}
+        keyboardType="number-pad"
+        placeholder="$0"
+        error={errors.amount}
+      />
+      <Field
+        label="Día del cobro"
+        value={day}
+        onChangeText={v => setDay(digitsOnly(v).slice(0, 2))}
+        keyboardType="number-pad"
+        placeholder="15"
+        error={errors.day}
+        hint="Si el mes tiene menos días, te avisamos para el último día del mes."
+      />
+
+      <Txt variant="label" muted style={{ marginBottom: SPACE.sm }}>Categoría</Txt>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm, marginBottom: SPACE.lg }}>
+        {EXPENSE_CATEGORIES.map(c => (
+          <Chip key={c.key} label={c.label} icon={c.icon} selected={category === c.key} onPress={() => { setCategory(c.key); setSubcategoryId(null); }} />
+        ))}
       </View>
 
-      {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator color={C.teal} size="large" />
+      <Txt variant="label" muted style={{ marginBottom: SPACE.sm }}>Subcategoría (opcional)</Txt>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm, marginBottom: SPACE.lg }}>
+        <Chip label="Ninguna" selected={!subcategoryId} onPress={() => setSubcategoryId(null)} />
+        {subcats.map(s => (
+          <Chip key={s.id} label={s.name} selected={subcategoryId === s.id} onPress={() => setSubcategoryId(s.id)} />
+        ))}
+        {newSubcat === null ? (
+          <Chip label="Nueva" icon="add" onPress={() => setNewSubcat('')} />
+        ) : null}
+      </View>
+      {newSubcat !== null ? (
+        <View style={{ flexDirection: 'row', gap: SPACE.sm, marginTop: -SPACE.sm, marginBottom: SPACE.lg }}>
+          <TextInput
+            value={newSubcat}
+            onChangeText={setNewSubcat}
+            placeholder={`Subcategoría de ${categoryLabel(category).toLowerCase()}`}
+            placeholderTextColor={C.textFaint}
+            autoFocus
+            onSubmitEditing={addSubcat}
+            returnKeyType="done"
+            style={{ flex: 1, minHeight: 44, fontSize: 16, color: C.text, backgroundColor: C.sunken, borderRadius: RADIUS.md, paddingHorizontal: SPACE.md }}
+          />
+          <Button title="Agregar" variant="secondary" onPress={addSubcat} style={{ minHeight: 44 }} />
         </View>
-      ) : (
-        <FlatList
-          data={payments}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <PaymentItem item={item} onLongPress={handleLongPress} colors={C} />
-          )}
-          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.teal} colors={[C.teal]} />
-          }
-          ListEmptyComponent={
-            <View style={{ marginTop: 60, alignItems: 'center' }}>
-              <MaterialCommunityIcons name="bell-ring-outline" size={48} color={C.textMuted} />
-              <Text style={{ color: C.textMuted, fontSize: 14, marginTop: 12, textAlign: 'center' }}>
-                Sin pagos recurrentes.{'\n'}Toca + para agregar uno.
-              </Text>
-            </View>
-          }
-        />
-      )}
+      ) : null}
 
-      {/* FAB */}
-      <TouchableOpacity
-        onPress={openCreate}
-        style={{
-          position: 'absolute',
-          bottom: 28,
-          right: 20,
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: C.teal,
-          alignItems: 'center',
-          justifyContent: 'center',
-          shadowColor: C.teal,
-          shadowOpacity: 0.5,
-          shadowRadius: 8,
-          elevation: 6,
-        }}
-      >
-        <MaterialCommunityIcons name="plus" size={28} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Modal creación/edición */}
-      <PaymentFormModal
-        visible={modalVisible}
-        editData={editData}
-        userId={user?.id}
-        onClose={() => setModalVisible(false)}
-        onSaved={loadPayments}
-        colors={C}
-      />
-    </SafeAreaView>
+      <Txt variant="label" muted style={{ marginBottom: SPACE.sm }}>Recordarme antes</Txt>
+      <View style={{ flexDirection: 'row', gap: SPACE.sm, marginBottom: SPACE.md }}>
+        {NOTIFY_OPTIONS.map(n => (
+          <Chip key={n} label={`${n} día${n > 1 ? 's' : ''}`} selected={notifyDays === n} onPress={() => setNotifyDays(n)} />
+        ))}
+      </View>
+    </Sheet>
   );
 }
 
-// Helpers de estilo
-const lbl = C => ({
-  fontSize: 11, fontWeight: '700', color: C.textMuted,
-  letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 8,
-});
-const inp = C => ({
-  backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.border,
-  color: C.text, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 20,
-});
+// ─── Pantalla ────────────────────────────────────────────────────────────────
+
+export default function RecurringPaymentsScreen() {
+  const { colors: C, mode } = useTheme();
+  const { user } = useAuth();
+  const navigation = useNavigation();
+  const [payments, setPayments] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [sheet, setSheet] = useState(null);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await recurringPaymentService.getAll(user.id);
+      setPayments(data || []);
+      setFailed(false);
+      notificationService.rescheduleAll(data || []);
+    } catch {
+      setFailed(true);
+      setPayments(p => p || []);
+    }
+  }, [user]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => <IconButton icon="add" label="Agregar pago fijo" onPress={() => setSheet({ payment: null })} color={C.brand} />,
+    });
+  }, [navigation, C.brand]);
+
+  const sorted = useMemo(() => {
+    const now = new Date();
+    return (payments || [])
+      .map(p => ({ ...p, next: nextMonthlyDate(p.day_of_month, now) }))
+      .sort((a, b) => a.next - b.next);
+  }, [payments]);
+
+  const monthlyTotal = sorted.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+  return (
+    <Screen withTopInset={false}>
+      {payments === null ? <ActivityIndicator color={C.textMuted} style={{ marginTop: SPACE.xxl }} /> : (
+        <>
+          {failed ? <Txt variant="caption" muted style={{ marginBottom: SPACE.md }}>No se pudieron cargar los pagos. Revisa tu conexión.</Txt> : null}
+          {sorted.length > 0 ? (
+            <View style={{ marginBottom: SPACE.xl }}>
+              <Txt variant="label" muted>Total al mes</Txt>
+              <Money value={monthlyTotal} variant="display" />
+              <Txt variant="caption" muted>{sorted.length} pago{sorted.length > 1 ? 's' : ''} con recordatorio</Txt>
+            </View>
+          ) : null}
+
+          <Card style={{ paddingVertical: SPACE.xs }}>
+            {sorted.length === 0 ? (
+              <EmptyState
+                icon="repeat-outline"
+                title="Sin pagos fijos"
+                body="Agrega arriendo, servicios o suscripciones y te avisamos antes de cada cobro."
+                actionLabel="Agregar pago fijo"
+                onAction={() => setSheet({ payment: null })}
+              />
+            ) : sorted.map((p, i) => (
+              <View key={p.id}>
+                {i > 0 ? <Divider inset={48} /> : null}
+                <Pressable onPress={() => setSheet({ payment: p })} accessibilityRole="button" accessibilityHint="Abre el pago para editarlo">
+                  {({ pressed }) => (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.md, paddingVertical: SPACE.md, opacity: pressed ? 0.6 : 1 }}>
+                      <IconBadge icon={categoryIcon(p.category_key)} color={categoryColor(p.category_key, mode)} />
+                      <View style={{ flex: 1 }}>
+                        <Txt numberOfLines={1}>{p.name}</Txt>
+                        <Txt variant="caption" muted style={{ marginTop: 2 }} numberOfLines={1}>
+                          Día {p.day_of_month} · próximo {dayLabel(localISODate(p.next)).toLowerCase()}
+                          {p.subcategories?.name ? ` · ${p.subcategories.name}` : ''}
+                        </Txt>
+                      </View>
+                      <Money value={p.amount} />
+                    </View>
+                  )}
+                </Pressable>
+              </View>
+            ))}
+          </Card>
+        </>
+      )}
+
+      <PaymentSheet state={sheet} userId={user?.id} onClose={() => setSheet(null)} onSaved={load} />
+    </Screen>
+  );
+}

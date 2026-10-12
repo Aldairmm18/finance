@@ -1,127 +1,89 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
-import { computeTotals } from './calculations'; // import estático (evita require() dinámico en async fn)
+import { getCurrentMes, localISODate, monthRange, addMes } from './dateUtils';
+
+export { getCurrentMes };
 
 const STORAGE_KEY = '@finance_data_v1';
 const STORAGE_MES_PREFIX = '@finance_mes_v1';
 const STORAGE_TXS_PREFIX = '@finance_txs_v1';
+const PENDING_KEY = '@finance_pending_v1';        // meses con cambios sin subir
+const ROLLOVER_PREFIX = '@finance_rollover_v1';   // avisos de sobrante descartados
 export const SYNC_KEY = '@finance_last_sync';
-/** Retorna el user_id autenticado, o null si no hay sesión */
+
+// ─── Sesión ──────────────────────────────────────────────────────────────────
+
 let _cachedUserId = null;
 
 async function getUserId() {
   if (_cachedUserId) return _cachedUserId;
   if (!supabase) return null;
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    _cachedUserId = user?.id || null;
+    const { data: { session } } = await supabase.auth.getSession();
+    _cachedUserId = session?.user?.id || null;
     return _cachedUserId;
   } catch {
     return null;
   }
 }
 
-// Llamar esta función cuando el usuario cierra sesión para limpiar la caché
 export function clearUserIdCache() {
   _cachedUserId = null;
 }
 
 /**
- * Borra TODA la caché financiera local (presupuesto base, presupuestos
- * mensuales, transacciones y timestamp de sync). Imprescindible al cerrar
- * sesión: evita que el siguiente usuario vea, aunque sea un instante, los
- * datos cacheados del usuario anterior en el mismo dispositivo.
+ * Borra toda la caché financiera local. Se llama al cerrar sesión para que el
+ * siguiente usuario del dispositivo no vea datos del anterior.
  */
 export async function clearLocalCache() {
   try {
     const keys = await AsyncStorage.getAllKeys();
     const toRemove = keys.filter(k =>
-      k === STORAGE_KEY ||
-      k === SYNC_KEY ||
-      k.startsWith(STORAGE_MES_PREFIX) ||
-      k.startsWith(STORAGE_TXS_PREFIX)
+      k === STORAGE_KEY || k === SYNC_KEY || k === PENDING_KEY ||
+      k.startsWith(STORAGE_MES_PREFIX) || k.startsWith(STORAGE_TXS_PREFIX) || k.startsWith(ROLLOVER_PREFIX)
     );
     if (toRemove.length) await AsyncStorage.multiRemove(toRemove);
   } catch { /* no bloquear el logout por un fallo de caché */ }
 }
 
-/** Retorna el mes actual en formato "YYYY-MM" */
-export function getCurrentMes() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
+// ─── Estructura por defecto ──────────────────────────────────────────────────
 
-// ─── Estructura de datos por defecto ─────────────────────────────────────────
+const item = (esencial = false) => ({ monto: '', periodicidad: 'mensual', esencial });
 
 export const DEFAULT_DATA = {
   ingresos: {
     salario: { monto: '', periodicidad: 'mensual' },
     bonos: { monto: '', periodicidad: 'mensual' },
-    dividendos: { monto: '', periodicidad: 'mensual' },
     comisiones: { monto: '', periodicidad: 'mensual' },
-    hogar: { monto: '', periodicidad: 'mensual' },
-    comida: { monto: '', periodicidad: 'mensual' },
-    transporte: { monto: '', periodicidad: 'mensual' },
-    creditos: { monto: '', periodicidad: 'mensual' },
-    entretenimiento: { monto: '', periodicidad: 'mensual' },
-    familia: { monto: '', periodicidad: 'mensual' },
-    ahorro: { monto: '', periodicidad: 'mensual' },
+    dividendos: { monto: '', periodicidad: 'mensual' },
     otros: { monto: '', periodicidad: 'mensual' },
   },
   gastos: {
     hogar: {
-      arriendo: { monto: '', periodicidad: 'mensual', esencial: true },
-      administracion: { monto: '', periodicidad: 'mensual', esencial: true },
-      luz: { monto: '', periodicidad: 'mensual', esencial: true },
-      agua: { monto: '', periodicidad: 'mensual', esencial: true },
-      gas: { monto: '', periodicidad: 'mensual', esencial: true },
-      telefono: { monto: '', periodicidad: 'mensual', esencial: true },
-      internet: { monto: '', periodicidad: 'mensual', esencial: true },
-      tv: { monto: '', periodicidad: 'mensual', esencial: false },
-      otro: { monto: '', periodicidad: 'mensual', esencial: false },
+      arriendo: item(true), administracion: item(true), luz: item(true), agua: item(true),
+      gas: item(true), telefono: item(true), internet: item(true), tv: item(), otro: item(),
     },
-    comida: {
-      mercado: { monto: '', periodicidad: 'mensual', esencial: true },
-      comidasFuera: { monto: '', periodicidad: 'mensual', esencial: false },
-      otro: { monto: '', periodicidad: 'mensual', esencial: false },
-    },
+    comida: { mercado: item(true), comidasFuera: item(), otro: item() },
     transporte: {
-      gasolina: { monto: '', periodicidad: 'mensual', esencial: true },
-      taxiUber: { monto: '', periodicidad: 'mensual', esencial: true },
-      transportePublico: { monto: '', periodicidad: 'mensual', esencial: true },
-      metro: { monto: '', periodicidad: 'mensual', esencial: true },
-      mantenimientoAuto: { monto: '', periodicidad: 'mensual', esencial: false },
-      seguroAuto: { monto: '', periodicidad: 'mensual', esencial: true },
-      otro: { monto: '', periodicidad: 'mensual', esencial: false },
+      gasolina: item(true), taxiUber: item(true), transportePublico: item(true), metro: item(true),
+      mantenimientoAuto: item(), seguroAuto: item(true), otro: item(),
+    },
+    salud: {
+      medicamentos: item(true), consultas: item(true), examenes: item(true), optica: item(), otro: item(),
     },
     creditos: {
-      creditoHipotecario: { monto: '', periodicidad: 'mensual', esencial: true },
-      creditoAuto: { monto: '', periodicidad: 'mensual', esencial: true },
-      tarjetaCredito: { monto: '', periodicidad: 'mensual', esencial: true },
-      otro: { monto: '', periodicidad: 'mensual', esencial: true },
+      creditoHipotecario: item(true), creditoAuto: item(true), tarjetaCredito: item(true), otro: item(true),
     },
     entretenimiento: {
-      viajes: { monto: '', periodicidad: 'mensual', esencial: false },
-      restaurantes: { monto: '', periodicidad: 'mensual', esencial: false },
-      diversion: { monto: '', periodicidad: 'mensual', esencial: false },
-      fiesta: { monto: '', periodicidad: 'mensual', esencial: false },
-      appleMusic: { monto: '', periodicidad: 'mensual', esencial: false },
-      ia: { monto: '', periodicidad: 'mensual', esencial: false },
-      otros: { monto: '', periodicidad: 'mensual', esencial: false },
+      viajes: item(), restaurantes: item(), diversion: item(), fiesta: item(),
+      appleMusic: item(), ia: item(), otros: item(),
     },
     familia: {
-      colegios: { monto: '', periodicidad: 'mensual', esencial: true },
-      seguroMedico: { monto: '', periodicidad: 'mensual', esencial: true },
-      otrosSeguros: { monto: '', periodicidad: 'mensual', esencial: true },
-      suscripciones: { monto: '', periodicidad: 'mensual', esencial: false },
-      gimnasio: { monto: '', periodicidad: 'mensual', esencial: false },
-      impuestos: { monto: '', periodicidad: 'mensual', esencial: true },
-      entretenimiento: { monto: '', periodicidad: 'mensual', esencial: false },
-      otros: { monto: '', periodicidad: 'mensual', esencial: false },
+      colegios: item(true), seguroMedico: item(true), otrosSeguros: item(true), suscripciones: item(),
+      gimnasio: item(), impuestos: item(true), entretenimiento: item(), otros: item(),
     },
   },
   ahorro: { monto: '', periodicidad: 'mensual' },
-  flujoMensual: {},
   tranquilidad: {
     gastosMensualesDeseados: '',
     rentabilidadAnual: '7',
@@ -129,7 +91,7 @@ export const DEFAULT_DATA = {
   },
 };
 
-// ─── Utilidades internas ──────────────────────────────────────────────────────
+const freshDefault = () => JSON.parse(JSON.stringify(DEFAULT_DATA));
 
 function deepMerge(target, source) {
   if (typeof target !== 'object' || typeof source !== 'object' || !target || !source) {
@@ -146,244 +108,209 @@ function deepMerge(target, source) {
   return result;
 }
 
-/** Añade un timeout a cualquier Promise para no bloquear la UI offline */
+const withDefaults = (datos) => deepMerge(freshDefault(), datos || {});
+
+/** Añade un timeout a una Promise para no bloquear la UI sin conexión. */
 function withTimeout(promise, ms = 6000) {
+  let timer;
   return Promise.race([
     promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), ms)
-    ),
-  ]);
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), ms); }),
+  ]).finally(() => clearTimeout(timer));
 }
 
-// ─── API pública ──────────────────────────────────────────────────────────────
+async function readJSON(key) {
+  try {
+    const json = await AsyncStorage.getItem(key);
+    return json ? JSON.parse(json) : null;
+  } catch {
+    return null;
+  }
+}
 
-/**
- * Carga datos con estrategia "Supabase first, AsyncStorage fallback".
- * Si Supabase responde, actualiza la caché local y retorna datos frescos.
- * Si Supabase falla o no hay conexión, usa la caché local.
- */
-export async function loadData() {
+async function writeJSON(key, value) {
+  try { await AsyncStorage.setItem(key, JSON.stringify(value)); } catch { /* caché best-effort */ }
+}
+
+// ─── Cambios pendientes de subir ─────────────────────────────────────────────
+// Si un guardado remoto falla, el mes queda marcado. Mientras esté marcado,
+// la copia local manda sobre la remota (si no, la nube "vieja" pisaría lo que
+// el usuario editó sin conexión).
+
+async function getPending() {
+  return (await readJSON(PENDING_KEY)) || {};
+}
+
+async function setPending(id, isPending) {
+  const pending = await getPending();
+  if (isPending) pending[id] = true;
+  else delete pending[id];
+  await writeJSON(PENDING_KEY, pending);
+}
+
+async function upsertRemote(id, datos) {
   const uid = await getUserId();
-  // 1. Intentar Supabase (con timeout de 6s para no bloquear el arranque)
-  if (supabase && uid) {
+  if (!supabase || !uid) throw new Error('Usuario no autenticado');
+  const now = new Date().toISOString();
+  const query = id === 'base'
+    ? supabase.from('presupuesto').upsert({ user_id: uid, datos, updated_at: now }, { onConflict: 'user_id' })
+    : supabase.from('presupuesto_mensual').upsert({ user_id: uid, mes: id, datos, updated_at: now }, { onConflict: 'user_id,mes' });
+  const { error } = await withTimeout(query, 8000);
+  if (error) throw error;
+  await AsyncStorage.setItem(SYNC_KEY, now).catch(() => {});
+}
+
+async function saveWithSync(id, localKey, data) {
+  await writeJSON(localKey, data);
+  await setPending(id, true);
+  try {
+    await upsertRemote(id, data);
+    await setPending(id, false);
+  } catch {
+    // Queda pendiente; se reintenta al volver a guardar o con "Sincronizar ahora".
+  }
+}
+
+// ─── Presupuesto base (ajustes generales, meta de tranquilidad) ─────────────
+
+export async function loadData() {
+  const pending = await getPending();
+  const uid = await getUserId();
+  if (supabase && uid && !pending.base) {
     try {
       const { data, error } = await withTimeout(
-        supabase
-          .from('presupuesto')
-          .select('datos')
-          .eq('user_id', uid)
-          .maybeSingle(),
-        6000
+        supabase.from('presupuesto').select('datos').eq('user_id', uid).maybeSingle(),
       );
       if (!error && data?.datos) {
-        const merged = deepMerge(
-          JSON.parse(JSON.stringify(DEFAULT_DATA)),
-          data.datos
-        );
-        // Actualizar caché local con los datos frescos de la nube
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        const merged = withDefaults(data.datos);
+        await writeJSON(STORAGE_KEY, merged);
         return merged;
       }
-    } catch {
-      // Supabase offline o error de red → continúa con caché local
-    }
+    } catch { /* sin conexión → caché */ }
   }
-
-  // 2. Fallback: AsyncStorage (funciona siempre, incluso offline)
-  try {
-    const json = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!json) return JSON.parse(JSON.stringify(DEFAULT_DATA));
-    return deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), JSON.parse(json));
-  } catch {
-    return JSON.parse(JSON.stringify(DEFAULT_DATA));
-  }
+  const cached = await readJSON(STORAGE_KEY);
+  return cached ? withDefaults(cached) : freshDefault();
 }
 
-/**
- * Guarda datos con estrategia dual:
- * 1. AsyncStorage SIEMPRE (inmediato, offline-safe, no bloquea la UI)
- * 2. Supabase en background (best-effort, sin bloquear)
- */
-export async function saveData(data) {
-  // Guardar localmente de forma inmediata (siempre funciona)
-  try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.error('[storage] Local save failed:', e);
-  }
-
-  // Subir a Supabase en background (no bloquea la UI)
-  if (supabase) {
-    const uid = await getUserId();
-    if (!uid) return; // Sin usuario autenticado, solo guardar localmente
-    withTimeout(
-      supabase
-        .from('presupuesto')
-        .upsert(
-          { user_id: uid, datos: data, updated_at: new Date().toISOString() },
-          { onConflict: 'user_id' }
-        ),
-      8000
-    )
-      .then(() => AsyncStorage.setItem(SYNC_KEY, new Date().toISOString()))
-      .catch(() => {
-        // Silencioso: la próxima carga o sync manual recuperará el estado
-      });
-  }
+export function saveData(data) {
+  return saveWithSync('base', STORAGE_KEY, data);
 }
 
+// ─── Presupuesto mensual ─────────────────────────────────────────────────────
+
 /**
- * Carga el presupuesto de un mes específico desde `presupuesto_mensual`.
- * Si no existe registro para ese mes, copia el presupuesto base como punto de partida.
- * @param {string} mes  Formato "YYYY-MM"
+ * Presupuesto de un mes. Si el mes no existe todavía, parte del mes anterior
+ * que sí tenga presupuesto (y si no hay ninguno, del presupuesto base).
+ * Con { strict: true } retorna null cuando el mes no tiene registro propio.
  */
 export async function loadDataMes(mes, options = {}) {
   const localKey = `${STORAGE_MES_PREFIX}_${mes}`;
-  const uid = await getUserId();
   const strict = options?.strict === true;
+  const pending = await getPending();
+  const uid = await getUserId();
 
-  // 1. Intentar presupuesto_mensual en Supabase
+  if (pending[mes]) {
+    const local = await readJSON(localKey);
+    if (local) return withDefaults(local);
+  }
+
   if (supabase && uid) {
     try {
       const { data, error } = await withTimeout(
-        supabase
-          .from('presupuesto_mensual')
-          .select('datos')
-          .eq('user_id', uid)
-          .eq('mes', mes)
-          .maybeSingle(),
-        6000,
+        supabase.from('presupuesto_mensual').select('datos').eq('user_id', uid).eq('mes', mes).maybeSingle(),
       );
       if (!error && data?.datos) {
-        const merged = deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), data.datos);
-        await AsyncStorage.setItem(localKey, JSON.stringify(merged));
+        const merged = withDefaults(data.datos);
+        await writeJSON(localKey, merged);
         return merged;
       }
-    } catch {
-      // offline → continúa
-    }
+      if (!error && !data) {
+        // El mes no existe en la nube: no usar una caché local huérfana.
+        if (strict) return null;
+        return inheritFromPrevious(mes, uid);
+      }
+    } catch { /* sin conexión → caché */ }
   }
 
-  // 2. Caché local mensual
-  try {
-    const json = await AsyncStorage.getItem(localKey);
-    if (json) return deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), JSON.parse(json));
-  } catch { }
-
-  // 3. Sin registro mensual → usar presupuesto base como punto de partida (no guardar aún)
+  const local = await readJSON(localKey);
+  if (local) return withDefaults(local);
   if (strict) return null;
   return loadData();
 }
 
-/**
- * Lee SOLO la caché local del presupuesto de un mes (sin red).
- * Para render instantáneo (stale-while-revalidate). Cae al presupuesto base
- * cacheado y, si no hay nada, a DEFAULT_DATA. Nunca null.
- */
-export async function loadDataMesCache(mes) {
-  const localKey = `${STORAGE_MES_PREFIX}_${mes}`;
+async function inheritFromPrevious(mes, uid) {
   try {
-    const json = await AsyncStorage.getItem(localKey);
-    if (json) return deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), JSON.parse(json));
-  } catch { }
-  try {
-    const baseJson = await AsyncStorage.getItem(STORAGE_KEY);
-    if (baseJson) return deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), JSON.parse(baseJson));
-  } catch { }
-  return JSON.parse(JSON.stringify(DEFAULT_DATA));
-}
-
-/**
- * Guarda el presupuesto de un mes específico en `presupuesto_mensual`.
- * @param {string} mes   Formato "YYYY-MM"
- * @param {object} data  Datos del presupuesto
- */
-export async function saveDataMes(mes, data) {
-  const localKey = `${STORAGE_MES_PREFIX}_${mes}`;
-
-  try {
-    await AsyncStorage.setItem(localKey, JSON.stringify(data));
-  } catch (e) {
-    console.error('[storage] Monthly local save failed:', e);
-  }
-
-  if (supabase) {
-    const uid = await getUserId();
-    if (!uid) return;
-    withTimeout(
+    const { data, error } = await withTimeout(
       supabase
         .from('presupuesto_mensual')
-        .upsert(
-          { user_id: uid, mes, datos: data, updated_at: new Date().toISOString() },
-          { onConflict: 'user_id,mes' },
-        ),
-      8000,
-    )
-      .then(() => AsyncStorage.setItem(SYNC_KEY, new Date().toISOString()))
-      .catch(() => { });
-  }
+        .select('datos')
+        .eq('user_id', uid)
+        .lt('mes', mes)
+        .order('mes', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    );
+    if (!error && data?.datos) return withDefaults(data.datos);
+  } catch { /* cae al base */ }
+  return loadData();
+}
+
+/** Solo caché local, sin red (render instantáneo). Nunca null. */
+export async function loadDataMesCache(mes) {
+  const local = await readJSON(`${STORAGE_MES_PREFIX}_${mes}`);
+  if (local) return withDefaults(local);
+  const base = await readJSON(STORAGE_KEY);
+  return base ? withDefaults(base) : freshDefault();
+}
+
+export function saveDataMes(mes, data) {
+  return saveWithSync(mes, `${STORAGE_MES_PREFIX}_${mes}`, data);
 }
 
 /**
- * Sincronización manual: sube los datos locales a Supabase.
- * Usado desde ConfigScreen con el botón "Sincronizar ahora".
- * @returns {{ success: boolean, timestamp?: string, reason?: string }}
+ * Sube todo lo que quedó pendiente (presupuestos editados sin conexión).
+ * @returns {{ success: boolean, uploaded?: number, timestamp?: string, reason?: string }}
  */
 export async function syncData() {
-  if (!supabase) {
-    return { success: false, reason: 'Cliente Supabase no disponible' };
-  }
+  if (!supabase) return { success: false, reason: 'Sin conexión con el servidor' };
+  const uid = await getUserId();
+  if (!uid) return { success: false, reason: 'Inicia sesión para sincronizar' };
+
+  const pending = await getPending();
+  const ids = Object.keys(pending);
+  let uploaded = 0;
   try {
-    const json = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!json) return { success: false, reason: 'Sin datos locales' };
-
-    const data = JSON.parse(json);
-    const uid = await getUserId();
-    if (!uid) return { success: false, reason: 'Usuario no autenticado' };
-    const { error } = await withTimeout(
-      supabase
-        .from('presupuesto')
-        .upsert(
-          { user_id: uid, datos: data, updated_at: new Date().toISOString() },
-          { onConflict: 'user_id' }
-        ),
-      10000
-    );
-    if (error) throw error;
-
+    for (const id of ids) {
+      const key = id === 'base' ? STORAGE_KEY : `${STORAGE_MES_PREFIX}_${id}`;
+      const data = await readJSON(key);
+      if (data) {
+        await upsertRemote(id, data);
+        uploaded += 1;
+      }
+      await setPending(id, false);
+    }
     const ts = new Date().toISOString();
     await AsyncStorage.setItem(SYNC_KEY, ts);
-    return { success: true, timestamp: ts };
+    return { success: true, uploaded, timestamp: ts };
   } catch (e) {
-    return { success: false, reason: e.message || 'Error de conexión' };
+    return { success: false, reason: e?.message === 'timeout' ? 'El servidor no respondió' : (e?.message || 'Error de conexión') };
   }
 }
 
-/** Retorna el ISO string de la última sync exitosa, o null si nunca sincronizó */
+export async function getPendingCount() {
+  return Object.keys(await getPending()).length;
+}
+
 export async function getLastSync() {
-  try {
-    return await AsyncStorage.getItem(SYNC_KEY);
-  } catch {
-    return null;
-  }
+  try { return await AsyncStorage.getItem(SYNC_KEY); } catch { return null; }
 }
 
-/**
- * Carga TODAS las transacciones de un mes específico desde Supabase.
- * @param {string} mes  Formato "YYYY-MM". Default: mes actual.
- * Retorna [] si Supabase no está disponible.
- */
-export async function loadTransaccionesMes(mes) {
-  if (!supabase) return [];
-  try {
-    const uid = await getUserId();
-    if (!uid) return [];
-    const m = mes || getCurrentMes();
-    const [y, month] = m.split('-').map(Number);
-    const start = new Date(y, month - 1, 1).toISOString().split('T')[0];
-    const end = new Date(y, month, 0).toISOString().split('T')[0]; // último día del mes
+// ─── Movimientos ─────────────────────────────────────────────────────────────
 
+async function fetchRange(start, end, ms = 6000) {
+  const uid = await getUserId();
+  if (!supabase || !uid) return null;
+  try {
     const { data, error } = await withTimeout(
       supabase
         .from('transacciones')
@@ -392,137 +319,40 @@ export async function loadTransaccionesMes(mes) {
         .gte('fecha', start)
         .lte('fecha', end)
         .order('fecha', { ascending: false }),
-      6000,
-    );
-    if (error) return [];
-    const rows = data || [];
-    try { await AsyncStorage.setItem(`${STORAGE_TXS_PREFIX}_${m}`, JSON.stringify(rows)); } catch { }
-    return rows;
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Lee SOLO la caché local de transacciones de un mes (sin red).
- * Para render instantáneo. Retorna [] si no hay caché.
- */
-export async function loadTransaccionesMesCache(mes) {
-  try {
-    const m = mes || getCurrentMes();
-    const json = await AsyncStorage.getItem(`${STORAGE_TXS_PREFIX}_${m}`);
-    if (json) return JSON.parse(json);
-  } catch { }
-  return [];
-}
-
-/**
- * Trae transacciones del mes desde Supabase y actualiza la caché local.
- * A diferencia de loadTransaccionesMes(), retorna null si falla la red/no hay
- * sesión (para que el caller distinga "error" de "0 transacciones" y NO borre
- * lo que ya mostraba). Retorna [] solo cuando el fetch fue exitoso y vacío.
- */
-export async function fetchTransaccionesMesRemote(mes) {
-  if (!supabase) return null;
-  try {
-    const uid = await getUserId();
-    if (!uid) return null;
-    const m = mes || getCurrentMes();
-    const [y, month] = m.split('-').map(Number);
-    const start = new Date(y, month - 1, 1).toISOString().split('T')[0];
-    const end = new Date(y, month, 0).toISOString().split('T')[0];
-    const { data, error } = await withTimeout(
-      supabase
-        .from('transacciones')
-        .select('*')
-        .eq('user_id', uid)
-        .gte('fecha', start)
-        .lte('fecha', end)
-        .order('fecha', { ascending: false }),
-      6000,
+      ms,
     );
     if (error) return null;
-    const rows = data || [];
-    try { await AsyncStorage.setItem(`${STORAGE_TXS_PREFIX}_${m}`, JSON.stringify(rows)); } catch { }
-    return rows;
+    return data || [];
   } catch {
     return null;
   }
 }
 
-/**
- * Carga TODAS las transacciones de un año completo desde Supabase.
- * @param {number} year  Año (ej: 2026). Default: año actual.
- * Retorna [] si Supabase no está disponible.
- */
-export async function loadTransaccionesAnio(year) {
-  if (!supabase) return [];
-  try {
-    const uid = await getUserId();
-    if (!uid) return [];
-    const y = year || new Date().getFullYear();
-    const start = `${y}-01-01`;
-    const end = `${y}-12-31`;
-
-    const { data, error } = await withTimeout(
-      supabase
-        .from('transacciones')
-        .select('*')
-        .eq('user_id', uid)
-        .gte('fecha', start)
-        .lte('fecha', end)
-        .order('fecha', { ascending: false }),
-      10000,
-    );
-    if (error) return [];
-    return data || [];
-  } catch {
-    return [];
-  }
+/** Movimientos del mes desde la caché local (sin red). */
+export async function loadTransaccionesMesCache(mes = getCurrentMes()) {
+  return (await readJSON(`${STORAGE_TXS_PREFIX}_${mes}`)) || [];
 }
 
 /**
- * Carga gastos extraordinarios del mes actual desde Supabase.
- * Retorna [] si Supabase no está disponible o hay error de red.
+ * Movimientos del mes desde Supabase. Retorna null si falla la red o no hay
+ * sesión (para distinguir "error" de "0 movimientos"), [] si está vacío.
  */
-export async function loadExtraordinarios() {
-  if (!supabase) return [];
-  try {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-      .toISOString().split('T')[0];
-    const today = now.toISOString().split('T')[0];
-
-    const uid = await getUserId();
-    if (!uid) return [];
-    const { data, error } = await withTimeout(
-      supabase
-        .from('transacciones')
-        .select('*')
-        .eq('user_id', uid)
-        .eq('es_extraordinario', true)
-        .gte('fecha', start)
-        .lte('fecha', today)
-        .order('fecha', { ascending: false }),
-      6000,
-    );
-    if (error) return [];
-    return data || [];
-  } catch {
-    return [];
-  }
+export async function fetchTransaccionesMesRemote(mes = getCurrentMes()) {
+  const { start, end } = monthRange(mes);
+  const rows = await fetchRange(start, end);
+  if (rows) await writeJSON(`${STORAGE_TXS_PREFIX}_${mes}`, rows);
+  return rows;
 }
 
-/**
- * Registra un gasto extraordinario desde la app (FAB del Dashboard).
- * @throws Error si Supabase no está disponible
- */
-export async function registrarExtraordinario({ descripcion, monto, categoria, tipo = 'gasto' }) {
-  if (!supabase) throw new Error('Sin conexión a Supabase');
+/** Movimientos de un año completo. null si falla la red. */
+export function loadTransaccionesAnio(year = new Date().getFullYear()) {
+  return fetchRange(`${year}-01-01`, `${year}-12-31`, 10000);
+}
+
+export async function addTransaction({ tipo, monto, categoria, descripcion, fecha }) {
+  if (!supabase) throw new Error('Sin conexión con el servidor');
   const uid = await getUserId();
-  if (!uid) throw new Error('Usuario no autenticado');
-  const _now = new Date();
-  const today = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
+  if (!uid) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
   const { data, error } = await supabase
     .from('transacciones')
     .insert({
@@ -530,11 +360,11 @@ export async function registrarExtraordinario({ descripcion, monto, categoria, t
       tipo,
       monto,
       categoria,
-      subcategoria: 'extraordinario',
+      subcategoria: 'otro',
       descripcion,
-      fecha: today,
+      fecha: fecha || localISODate(),
       fuente: 'app',
-      es_extraordinario: true,
+      es_extraordinario: false,
     })
     .select()
     .single();
@@ -542,104 +372,71 @@ export async function registrarExtraordinario({ descripcion, monto, categoria, t
   return data;
 }
 
-/**
- * Calcula el sobrante (rollover) del mes anterior al mes dado.
- * Sobrante = Ingresos presupuestados - Gastos reales (transacciones).
- * @param {string} mes  Formato "YYYY-MM" del mes ACTUAL (se mira el anterior)
- * @returns {{ surplus: number, prevMes: string }}
- */
-export async function computeRollover(mes) {
-  const [y, m] = mes.split('-').map(Number);
-  const d = new Date(y, m - 2, 1); // mes anterior
-  const prevMes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-
-  try {
-    // 1. Cargar presupuesto del mes anterior
-    const prevData = await loadDataMes(prevMes);
-    if (!prevData) return { surplus: 0, prevMes };
-
-    // Calcular ingresos presupuestados
-    const totals = computeTotals(prevData);
-    if (!totals) return { surplus: 0, prevMes };
-
-    // 2. Cargar gastos reales del mes anterior
-    const txs = await loadTransaccionesMes(prevMes);
-    const gastosReales = (txs || [])
-      .filter(tx => tx.tipo === 'gasto')
-      .reduce((sum, tx) => sum + (tx.monto || 0), 0);
-    const ingresosReales = (txs || [])
-      .filter(tx => tx.tipo === 'ingreso')
-      .reduce((sum, tx) => sum + (tx.monto || 0), 0);
-
-    // Surplus = (Ingresos presupuestados + ingresos extraordinarios) - (Gastos presupuestados + gastos extraordinarios)
-    const totalIngresos = totals.ingresosMonthly + ingresosReales;
-    const totalGastos = totals.totalGastosMonthly + gastosReales;
-    const surplus = totalIngresos - totalGastos;
-
-    return { surplus: Math.max(0, Math.round(surplus)), prevMes };
-  } catch {
-    return { surplus: 0, prevMes };
-  }
+export async function updateTransaction(id, patch) {
+  if (!supabase) throw new Error('Sin conexión con el servidor');
+  const { error } = await supabase.from('transacciones').update(patch).eq('id', id);
+  if (error) throw error;
 }
 
+export async function deleteTransaction(id) {
+  if (!supabase) throw new Error('Sin conexión con el servidor');
+  const { error } = await supabase.from('transacciones').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Sobrante del mes anterior (manual) ──────────────────────────────────────
+
+const ROLLOVER_SUB = 'rollover';
+
 /**
- * Aplica el traspaso del sobrante del mes anterior al mes actual.
- * Sobrante = Ingresos reales - Gastos reales (transacciones del mes anterior).
- * Si hay sobrante, se registra como ingreso extraordinario en el mes actual.
- * @param {string} mesActual Formato "YYYY-MM"
- * @returns {{ applied: boolean, prevMes?: string, balance?: number }}
+ * ¿Hay un sobrante del mes anterior por ofrecer? Sobrante = ingresos reales −
+ * gastos reales del mes anterior. No se ofrece si ya se pasó o se descartó.
+ * @param {string} mes  Mes actual "YYYY-MM"
+ * @param {object[]} currentTxs  Movimientos ya cargados del mes actual
  */
-export async function aplicarTraspasoSobrante(mesActual) {
-  if (!mesActual) return { applied: false };
-  const [y, m] = mesActual.split('-').map(Number);
-  if (!y || !m) return { applied: false };
+export async function getRolloverOffer(mes, currentTxs) {
+  const prevMes = addMes(mes, -1);
+  const uid = await getUserId();
+  if (!uid) return null;
+  if (await AsyncStorage.getItem(`${ROLLOVER_PREFIX}_${uid}_${mes}`).catch(() => null)) return null;
+  if ((currentTxs || []).some(tx => tx.subcategoria === ROLLOVER_SUB && tx.tipo === 'ingreso')) return null;
 
-  const d = new Date(y, m - 2, 1); // mes anterior
-  const prevMes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  const desc = 'Ahorro de traspaso mes anterior';
+  const prevTxs = await fetchTransaccionesMesRemote(prevMes);
+  if (!prevTxs || prevTxs.length === 0) return null;
+  const balance = prevTxs.reduce((sum, tx) => {
+    const monto = Number(tx.monto) || 0;
+    return tx.tipo === 'ingreso' ? sum + monto : sum - monto;
+  }, 0);
+  return balance > 0 ? { prevMes, amount: Math.round(balance) } : null;
+}
 
-  try {
-    const prevTxs = await loadTransaccionesMes(prevMes);
-    const totalIngresos = (prevTxs || [])
-      .filter(tx => tx.tipo === 'ingreso')
-      .reduce((sum, tx) => sum + (tx.monto || 0), 0);
-    const totalGastos = (prevTxs || [])
-      .filter(tx => tx.tipo === 'gasto')
-      .reduce((sum, tx) => sum + (tx.monto || 0), 0);
-    const balance = totalIngresos - totalGastos;
+export async function dismissRollover(mes) {
+  const uid = await getUserId();
+  if (uid) await AsyncStorage.setItem(`${ROLLOVER_PREFIX}_${uid}_${mes}`, '1').catch(() => {});
+}
 
-    if (balance <= 0) return { applied: false, prevMes, balance };
+/** Registra el sobrante como ingreso de ahorro del mes actual (sin duplicar). */
+export async function applyRollover(mes, amount, prevMesLabel) {
+  const current = await fetchTransaccionesMesRemote(mes);
+  if (current === null) throw new Error('No se pudo verificar el mes. Revisa tu conexión.');
+  if (current.some(tx => tx.subcategoria === ROLLOVER_SUB && tx.tipo === 'ingreso')) return;
 
-    // Verificar duplicado usando subcategoria='rollover' en vez de descripción
-    // (más robusto: no falla si el usuario renombra la transacción)
-    const currentTxs = await loadTransaccionesMes(mesActual);
-    const exists = (currentTxs || []).some(tx =>
-      tx.subcategoria === 'rollover' && tx.tipo === 'ingreso'
-    );
-    if (exists) return { applied: false, prevMes, balance };
-
-    // Insertar con subcategoria='rollover' para identificarlo de forma única
-    if (!supabase) throw new Error('Sin conexión a Supabase');
-    const uid = await getUserId();
-    if (!uid) throw new Error('Usuario no autenticado');
-    const _now = new Date();
-    const today = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
-
-    const { error } = await supabase.from('transacciones').insert({
-      user_id: uid,
-      tipo: 'ingreso',
-      monto: balance,
-      categoria: 'ahorro',
-      subcategoria: 'rollover',   // ← flag único — no depende de texto editable
-      descripcion: desc,
-      fecha: today,
-      fuente: 'app',
-      es_extraordinario: true,
-    });
-    if (error) throw error;
-
-    return { applied: true, prevMes, balance };
-  } catch {
-    return { applied: false, prevMes };
-  }
+  const uid = await getUserId();
+  if (!supabase || !uid) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
+  const today = localISODate();
+  const { start, end } = monthRange(mes);
+  const { error } = await supabase.from('transacciones').insert({
+    user_id: uid,
+    tipo: 'ingreso',
+    monto: amount,
+    categoria: 'ahorro',
+    subcategoria: ROLLOVER_SUB,
+    descripcion: `Sobrante de ${prevMesLabel}`,
+    // Si se aplica desde otro mes, la fecha cae dentro del mes destino.
+    fecha: today >= start && today <= end ? today : start,
+    fuente: 'app',
+    es_extraordinario: false,
+  });
+  if (error) throw error;
+  await dismissRollover(mes);
 }

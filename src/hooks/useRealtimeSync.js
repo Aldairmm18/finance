@@ -1,42 +1,46 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
+import { useAuth } from '../context/AuthContext';
+
+// ─── Bus de cambios locales ──────────────────────────────────────────────────
+// Cuando la app crea/edita/borra un movimiento, avisa a las pantallas montadas
+// para que recarguen sin esperar a Realtime.
+
+const listeners = new Set();
+
+export function notifyTransactionsChanged() {
+  listeners.forEach(fn => {
+    try { fn(); } catch { /* un listener roto no bloquea a los demás */ }
+  });
+}
 
 /**
- * Suscribe a cambios en la tabla `transacciones` via Supabase Realtime.
- * Cuando el bot (u otra fuente) inserta/actualiza/elimina una fila,
- * llama a onUpdate() para que la UI refresque los datos.
+ * Llama a onUpdate cuando cambian los movimientos del usuario: por la app
+ * (notifyTransactionsChanged) o por otra fuente como el bot (Supabase Realtime).
  *
- * Requisito en Supabase:
- *   ALTER PUBLICATION supabase_realtime ADD TABLE transacciones;
- *
- * @param {Function} onUpdate  Callback(payload) llamado al recibir un evento
+ * Requisito en Supabase: ALTER PUBLICATION supabase_realtime ADD TABLE transacciones;
  */
 export function useRealtimeSync(onUpdate) {
-  const channelRef  = useRef(null);
+  const { user } = useAuth();
   const callbackRef = useRef(onUpdate);
-  callbackRef.current = onUpdate;   // siempre apunta al callback más reciente
+  callbackRef.current = onUpdate;
 
   useEffect(() => {
-    if (!supabase) return;  // sin cliente, no suscribir
+    const local = () => callbackRef.current?.();
+    listeners.add(local);
+    return () => { listeners.delete(local); };
+  }, []);
 
-    // Nombre único por sesión para evitar conflictos si la app está abierta en varios dispositivos
-    const channelName = `finance-txns-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  useEffect(() => {
+    if (!supabase || !user?.id) return undefined;
     const channel = supabase
-      .channel(channelName)
+      .channel(`txns-${user.id}-${Math.random().toString(36).slice(2, 7)}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'transacciones' },
-        (payload) => callbackRef.current?.(payload),
+        { event: '*', schema: 'public', table: 'transacciones', filter: `user_id=eq.${user.id}` },
+        () => callbackRef.current?.(),
       )
       .subscribe();
-
-    channelRef.current = channel;
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
-  }, []); // suscribir una sola vez
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
 }

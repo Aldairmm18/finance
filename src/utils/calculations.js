@@ -1,3 +1,5 @@
+import { normalizeCategory } from './categories';
+
 export const PERIODICIDADES = [
   { label: 'Mensual', value: 'mensual', months: 1 },
   { label: 'Bimensual', value: 'bimensual', months: 2 },
@@ -6,185 +8,134 @@ export const PERIODICIDADES = [
   { label: 'Anual', value: 'anual', months: 12 },
 ];
 
+/** Parsea porcentajes y decimales simples ("7", "7.5"). No usar para montos COP. */
 export function parseAmount(str) {
   if (!str && str !== 0) return 0;
   return parseFloat(String(str).replace(/[^0-9.]/g, '')) || 0;
 }
 
 /**
- * Parsea un monto en formato colombiano correctamente.
- * "1.500.000" → 1500000  (punto = separador de miles en COP)
- * "1.500"     → 1500
- * "1.5"       → 1.5
- * "1500000"   → 1500000
- * "1.500,50"  → 1500.50  (coma = decimal)
+ * Parsea un monto en formato colombiano.
+ * "1.500.000" → 1500000 · "1.500" → 1500 · "1.500,50" → 1500.5 · 1500 → 1500
  */
 export function parseCOP(str) {
-  if (!str && str !== 0) return 0;
+  if (typeof str === 'number') return Number.isFinite(str) ? str : 0;
+  if (!str) return 0;
   const s = String(str).trim();
 
-  // Si tiene coma: separador decimal colombiano ("1.500,50" → 1500.50)
   if (s.includes(',')) {
     return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
   }
-
-  // Múltiples puntos → todos son separadores de miles
   const dots = (s.match(/\./g) || []).length;
-  if (dots > 1) {
-    return parseFloat(s.replace(/\./g, '')) || 0;
-  }
-
-  // Un punto seguido de exactamente 3 dígitos al final → separador de miles
-  if (/\.\d{3}$/.test(s)) {
-    return parseFloat(s.replace('.', '')) || 0;
-  }
-
-  // Caso normal: número sin formato o con punto decimal real
+  if (dots > 1) return parseFloat(s.replace(/\./g, '')) || 0;
+  if (/\.\d{3}$/.test(s)) return parseFloat(s.replace('.', '')) || 0;
   return parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
 }
 
 export function toMonthly(amount, periodicidad) {
-  const p = PERIODICIDADES.find(p => p.value === periodicidad);
-  const months = p ? p.months : 1;
-  return parseAmount(amount) / months;
+  const p = PERIODICIDADES.find(x => x.value === periodicidad);
+  return parseCOP(amount) / (p ? p.months : 1);
 }
 
 export function toAnnual(amount, periodicidad) {
   return toMonthly(amount, periodicidad) * 12;
 }
 
+function groupThousands(n) {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/** $1.234.567 · −$45.000 (sin depender de los datos de locale de Android). */
 export function formatCOP(amount) {
-  const num = Math.round(amount || 0);
-  try {
-    // Intenta locale colombiano; puede fallar en algunos Android sin datos CLDR completos
-    const formatted = num.toLocaleString('es-CO');
-    if (formatted && formatted !== String(num)) return '$' + formatted;
-  } catch { /* fallback */ }
-  // Fallback manual: separadores de miles con punto
-  return '$' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const num = Math.round(Number(amount) || 0);
+  const abs = groupThousands(Math.abs(num));
+  return num < 0 ? `−$${abs}` : `$${abs}`;
+}
+
+/** Igual que formatCOP pero abreviado para espacios estrechos: $1,2 M · $850 k */
+export function formatCOPShort(amount) {
+  const num = Math.round(Number(amount) || 0);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '−' : '';
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1).replace('.', ',').replace(',0', '')} M`;
+  if (abs >= 10_000) return `${sign}$${Math.round(abs / 1000)} k`;
+  return formatCOP(num);
+}
+
+// ─── Plan (presupuesto del mes) ──────────────────────────────────────────────
+
+/**
+ * Totales planeados a partir del presupuesto mensual.
+ * byCategory usa las claves del catálogo (hogar, comida, …).
+ */
+export function computePlan(data) {
+  const empty = {
+    ingresos: 0, gastos: 0, ahorro: 0, esenciales: 0, noEsenciales: 0, creditos: 0,
+    byCategory: {}, incomeBySource: {}, fondoEmergencia: 0,
+  };
+  if (!data) return empty;
+
+  const plan = { ...empty, byCategory: {}, incomeBySource: {} };
+
+  for (const [key, item] of Object.entries(data.ingresos || {})) {
+    const monthly = toMonthly(item?.monto, item?.periodicidad);
+    if (!monthly) continue;
+    plan.ingresos += monthly;
+    const k = normalizeCategory(key);
+    plan.incomeBySource[k] = (plan.incomeBySource[k] || 0) + monthly;
+  }
+
+  for (const [catKey, items] of Object.entries(data.gastos || {})) {
+    const k = normalizeCategory(catKey);
+    for (const item of Object.values(items || {})) {
+      const monthly = toMonthly(item?.monto, item?.periodicidad);
+      if (!monthly) continue;
+      plan.gastos += monthly;
+      plan.byCategory[k] = (plan.byCategory[k] || 0) + monthly;
+      if (k === 'creditos') plan.creditos += monthly;
+      else if (item.esencial) plan.esenciales += monthly;
+      else plan.noEsenciales += monthly;
+    }
+  }
+
+  plan.ahorro = toMonthly(data.ahorro?.monto, data.ahorro?.periodicidad);
+  plan.fondoEmergencia = plan.esenciales * 3;
+  return plan;
+}
+
+// ─── Real (movimientos registrados) ──────────────────────────────────────────
+
+export function computeActuals(transactions) {
+  const actual = { ingresos: 0, gastos: 0, byCategory: {}, incomeBySource: {}, count: 0 };
+  for (const tx of transactions || []) {
+    const monto = Number(tx?.monto) || 0;
+    if (monto <= 0) continue;
+    actual.count += 1;
+    const k = normalizeCategory(tx.categoria);
+    if (tx.tipo === 'ingreso') {
+      actual.ingresos += monto;
+      actual.incomeBySource[k] = (actual.incomeBySource[k] || 0) + monto;
+    } else {
+      actual.gastos += monto;
+      actual.byCategory[k] = (actual.byCategory[k] || 0) + monto;
+    }
+  }
+  actual.balance = actual.ingresos - actual.gastos;
+  return actual;
 }
 
 /**
- * Fusiona transacciones individuales (tabla `transacciones`) con los totales
- * del presupuesto para que el bot y el FAB aparezcan en el Dashboard.
+ * Cruza plan y real por categoría de gasto, ordenado por lo más relevante.
+ * @returns {{ key, planned, spent, ratio }[]}
  */
-export function mergeTransacciones(baseTotals, transacciones) {
-  // Guard: si no hay base (mes sin datos de presupuesto), crear estructura vacía
-  const base = baseTotals || {
-    ingresosMonthly: 0, ingresosAnual: 0,
-    totalGastosMonthly: 0, totalGastosAnual: 0,
-    esencialesMonthly: 0, noEsencialesMonthly: 0,
-    creditosMonthly: 0, ahorroMonthly: 0,
-    flujoCaja: 0, flujoCajaAnual: 0,
-    flujoCajaConAhorro: 0, flujoCajaConAhorroAnual: 0,
-    fondoEmergencia: 0,
-    gastosByCategory: {}, ingresosBySource: {},
-  };
-
-  if (!transacciones || transacciones.length === 0) return base;
-
-  const t = {
-    ...base,
-    gastosByCategory: { ...base.gastosByCategory },
-    ingresosBySource: { ...base.ingresosBySource },
-  };
-
-  // Categorías que se consideran esenciales al nivel de transacción individual.
-  // (Equivale al flag esencial:true del presupuesto, pero inferido por categoría)
-  const ESSENTIAL_CATS = new Set([
-    'hogar', 'Servicios',
-    'comida', 'Alimentación',
-    'transporte', 'Transporte',
-    'salud', 'Salud',
-    'familia', 'Familia',
-    'educacion', 'educación', 'Educación',
-  ]);
-
-  for (const tx of transacciones) {
-    const monto = Number(tx.monto) || 0;
-    if (monto <= 0) continue;
-
-    if (tx.tipo === 'ingreso') {
-      t.ingresosMonthly += monto;
-      const src = tx.categoria || 'otros';
-      t.ingresosBySource[src] = (t.ingresosBySource[src] || 0) + monto;
-    } else {
-      t.totalGastosMonthly += monto;
-      const cat = tx.categoria || 'otro';
-      t.gastosByCategory[cat] = (t.gastosByCategory[cat] || 0) + monto;
-      if (cat === 'creditos' || cat === 'Créditos') {
-        t.creditosMonthly += monto;
-      } else if (ESSENTIAL_CATS.has(cat)) {
-        t.esencialesMonthly += monto;   // ← fix: antes nunca se sumaba aquí
-      } else {
-        t.noEsencialesMonthly += monto;
-      }
-    }
-  }
-
-  t.ingresosAnual           = t.ingresosMonthly * 12;
-  t.totalGastosAnual        = t.totalGastosMonthly * 12;
-  t.flujoCaja               = t.ingresosMonthly - t.totalGastosMonthly;
-  t.flujoCajaAnual          = t.flujoCaja * 12;
-  t.flujoCajaConAhorro      = t.ingresosMonthly - t.ahorroMonthly - t.totalGastosMonthly;
-  t.flujoCajaConAhorroAnual = t.flujoCajaConAhorro * 12;
-  t.fondoEmergencia         = t.esencialesMonthly * 3;
-
-  return t;
-}
-
-export function computeTotals(data) {
-  if (!data) return null;
-
-  const ingresosBySource = {};
-  let ingresosMonthly = 0;
-  for (const [key, item] of Object.entries(data.ingresos)) {
-    const monthly = toMonthly(item.monto, item.periodicidad);
-    ingresosBySource[key] = monthly;
-    ingresosMonthly += monthly;
-  }
-
-  const gastosByCategory = {};
-  let totalGastosMonthly = 0;
-  let esencialesMonthly = 0;
-  let noEsencialesMonthly = 0;
-  let creditosMonthly = 0;
-
-  for (const [catKey, catItems] of Object.entries(data.gastos)) {
-    let catTotal = 0;
-    for (const item of Object.values(catItems)) {
-      const monthly = toMonthly(item.monto, item.periodicidad);
-      catTotal += monthly;
-      totalGastosMonthly += monthly;
-      if (catKey === 'creditos') {
-        creditosMonthly += monthly;
-      } else if (item.esencial) {
-        esencialesMonthly += monthly;
-      } else {
-        noEsencialesMonthly += monthly;
-      }
-    }
-    gastosByCategory[catKey] = catTotal;
-  }
-
-  const ahorroMonthly = toMonthly(data.ahorro.monto, data.ahorro.periodicidad);
-
-  return {
-    ingresosMonthly,
-    ingresosAnual: ingresosMonthly * 12,
-    totalGastosMonthly,
-    totalGastosAnual: totalGastosMonthly * 12,
-    flujoCaja: ingresosMonthly - totalGastosMonthly,
-    flujoCajaAnual: (ingresosMonthly - totalGastosMonthly) * 12,
-    flujoCajaConAhorro: ingresosMonthly - ahorroMonthly - totalGastosMonthly,
-    flujoCajaConAhorroAnual: (ingresosMonthly - ahorroMonthly - totalGastosMonthly) * 12,
-    ahorroMonthly,
-    ahorroAnual: ahorroMonthly * 12,
-    gastosByCategory,
-    esencialesMonthly,
-    noEsencialesMonthly,
-    creditosMonthly,
-    fondoEmergencia: esencialesMonthly * 3,
-    ingresosBySource,
-  };
+export function compareByCategory(plan, actual) {
+  const keys = new Set([...Object.keys(plan?.byCategory || {}), ...Object.keys(actual?.byCategory || {})]);
+  return Array.from(keys)
+    .map(key => {
+      const planned = plan?.byCategory?.[key] || 0;
+      const spent = actual?.byCategory?.[key] || 0;
+      return { key, planned, spent, ratio: planned > 0 ? spent / planned : spent > 0 ? Infinity : 0 };
+    })
+    .filter(r => r.planned > 0 || r.spent > 0)
+    .sort((a, b) => Math.max(b.spent, b.planned) - Math.max(a.spent, a.planned));
 }

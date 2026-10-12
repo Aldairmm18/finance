@@ -2,6 +2,8 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { nextMonthlyDate } from '../utils/dateUtils';
+import { formatCOP } from '../utils/calculations';
 
 // En Expo Go las push notifications fueron removidas desde SDK 53
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -41,15 +43,21 @@ export const notificationService = {
     if (isExpoGo) return null;
     try {
       const now = new Date();
-      let paymentDate = new Date(now.getFullYear(), now.getMonth(), payment.day_of_month);
-      if (paymentDate <= now) paymentDate.setMonth(paymentDate.getMonth() + 1);
-      const notifyDate = new Date(paymentDate);
-      notifyDate.setDate(notifyDate.getDate() - (payment.notify_days_before ?? 3));
-      if (notifyDate <= now) return null;
+      const daysBefore = payment.notify_days_before ?? 3;
+      // Próximo cobro con el día ajustado al largo del mes (31 → 28/29/30).
+      let paymentDate = nextMonthlyDate(payment.day_of_month, now);
+      let notifyDate = new Date(paymentDate);
+      notifyDate.setDate(notifyDate.getDate() - daysBefore);
+      if (notifyDate <= now) {
+        // El aviso de este ciclo ya pasó: programar el del siguiente cobro.
+        paymentDate = nextMonthlyDate(payment.day_of_month, new Date(paymentDate.getTime() + 86400000));
+        notifyDate = new Date(paymentDate);
+        notifyDate.setDate(notifyDate.getDate() - daysBefore);
+      }
       const id = await Notifications.scheduleNotificationAsync({
         content: {
-          title: '💳 Pago próximo',
-          body: `${payment.name} — $${Number(payment.amount).toLocaleString('es-CO')} se cobra el día ${payment.day_of_month}`,
+          title: 'Pago próximo',
+          body: `${payment.name}: ${formatCOP(payment.amount)} se cobra el día ${paymentDate.getDate()}`,
           data: { paymentId: payment.id },
         },
         trigger: {

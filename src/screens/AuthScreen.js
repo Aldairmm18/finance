@@ -1,278 +1,172 @@
-import React, { useState, useMemo } from 'react';
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    StyleSheet,
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import { View, Image, Platform, Pressable, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { Txt, Field, Button, Segmented, Divider } from '../components/ui';
+import { SPACE, RADIUS } from '../theme/tokens';
 
-export default function AuthScreen() {
-    const { signIn, signUp, resetPassword } = useAuth();
-    const { colors: C } = useTheme();
+const LOGO = require('../../assets/logo-mark.png');
+const LOGO_BG = '#F7E9C6'; // crema del logo
 
-    const [mode, setMode] = useState('login'); // 'login' | 'register' | 'reset'
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-
-    const s = useMemo(() => makeStyles(C), [C]);
-
-    const handleSubmit = async () => {
-        setError('');
-        setSuccess('');
-        const trimEmail = email.trim().toLowerCase();
-
-        if (!trimEmail) {
-            setError('Ingresa tu correo electrónico');
-            return;
-        }
-
-        if (mode !== 'reset' && (!password || password.length < 6)) {
-            setError('La contraseña debe tener al menos 6 caracteres');
-            return;
-        }
-
-        setLoading(true);
-        try {
-            if (mode === 'login') {
-                await signIn(trimEmail, password);
-            } else if (mode === 'register') {
-                await signUp(trimEmail, password);
-                setEmail('');
-                setPassword('');
-                setMode('login');
-                setSuccess('¡Registro exitoso! Por favor inicia sesión.');
-                Alert.alert('Registro exitoso', 'Tu cuenta ha sido creada. Por favor inicia sesión.');
-            } else {
-                await resetPassword(trimEmail);
-                setSuccess('Revisa tu correo para restablecer la contraseña.');
-                setMode('login');
-            }
-        } catch (e) {
-            const msg = e.message || 'Error inesperado';
-            if (msg.includes('Invalid login')) setError('Correo o contraseña incorrectos');
-            else if (msg.includes('already registered')) setError('Este correo ya está registrado');
-            else if (msg.includes('valid email')) setError('Ingresa un correo válido');
-            else setError(msg);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const switchMode = (newMode) => {
-        setMode(newMode);
-        setError('');
-        setSuccess('');
-        setEmail('');
-        setPassword('');
-    };
-
-    return (
-        <KeyboardAvoidingView
-            style={s.container}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-            <ScrollView
-                contentContainerStyle={s.scroll}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-            >
-                {/* ── Logo / Title ── */}
-                <View style={s.logoSection}>
-                    <View style={[s.logoCircle, { backgroundColor: C.teal + '20', borderColor: C.teal + '40' }]}>
-                        <Ionicons name="cash" size={32} color={C.teal} style={s.logoIcon} />
-                    </View>
-                    <Text style={[s.appTitle, { color: C.text }]}>Finance</Text>
-                    <Text style={[s.appSubtitle, { color: C.textMuted }]}>
-                        Tu asistente financiero personal
-                    </Text>
-                </View>
-
-                {/* ── Card ── */}
-                <View style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>
-                    {/* Accent bar */}
-                    <View style={[s.cardAccent, { backgroundColor: C.teal }]} />
-
-                    {/* Mode tabs */}
-                    {mode !== 'reset' && (
-                        <View style={[s.modeTabs, { backgroundColor: C.bg, borderColor: C.border }]}>
-                            <TouchableOpacity
-                                onPress={() => switchMode('login')}
-                                style={[
-                                    s.modeTab,
-                                    mode === 'login' && { backgroundColor: C.teal },
-                                ]}
-                            >
-                                <Text style={[
-                                    s.modeTabText,
-                                    { color: mode === 'login' ? '#fff' : C.textMuted },
-                                ]}>
-                                    Iniciar sesión
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => switchMode('register')}
-                                style={[
-                                    s.modeTab,
-                                    mode === 'register' && { backgroundColor: C.teal },
-                                ]}
-                            >
-                                <Text style={[
-                                    s.modeTabText,
-                                    { color: mode === 'register' ? '#fff' : C.textMuted },
-                                ]}>
-                                    Registrarse
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-
-                    {mode === 'reset' && (
-                        <View style={{ paddingTop: 16 }}>
-                            <Text style={[s.resetTitle, { color: C.text }]}>
-                                Recuperar contraseña
-                            </Text>
-                            <Text style={[s.resetSub, { color: C.textMuted }]}>
-                                Te enviaremos un enlace a tu correo
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Email */}
-                    <Text style={[s.label, { color: C.textMuted }]}>Correo electrónico</Text>
-                    <TextInput
-                        style={[s.input, { backgroundColor: C.bg, borderColor: C.border, color: C.text }]}
-                        placeholder="tu@correo.com"
-                        placeholderTextColor={C.textMuted}
-                        value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoComplete="email"
-                        returnKeyType={mode === 'reset' ? 'done' : 'next'}
-                    />
-
-                    {/* Password (not on reset mode) */}
-                    {mode !== 'reset' && (
-                        <>
-                            <Text style={[s.label, { color: C.textMuted }]}>Contraseña</Text>
-                            <TextInput
-                                style={[s.input, { backgroundColor: C.bg, borderColor: C.border, color: C.text }]}
-                                placeholder="Mínimo 6 caracteres"
-                                placeholderTextColor={C.textMuted}
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry
-                                autoCapitalize="none"
-                                returnKeyType="done"
-                            />
-                        </>
-                    )}
-
-                    {/* Error */}
-                    {error ? (
-                        <View style={[s.alertBox, { backgroundColor: C.pink + '15', borderColor: C.pink + '40' }]}>
-                            <Text style={[s.alertText, { color: C.pink }]}>{error}</Text>
-                        </View>
-                    ) : null}
-
-                    {/* Success */}
-                    {success ? (
-                        <View style={[s.alertBox, { backgroundColor: C.teal + '15', borderColor: C.teal + '40' }]}>
-                            <Text style={[s.alertText, { color: C.teal }]}>{success}</Text>
-                        </View>
-                    ) : null}
-
-                    {/* Submit button */}
-                    <TouchableOpacity
-                        onPress={handleSubmit}
-                        disabled={loading}
-                        style={[s.btn, { backgroundColor: C.teal }]}
-                    >
-                        {loading ? (
-                            <ActivityIndicator color="#fff" />
-                        ) : (
-                            <Text style={s.btnText}>
-                                {mode === 'login' ? 'Iniciar sesión' : mode === 'register' ? 'Crear cuenta' : 'Enviar enlace'}
-                            </Text>
-                        )}
-                    </TouchableOpacity>
-
-                    {/* Forgot password / back */}
-                    {mode === 'login' && (
-                        <TouchableOpacity onPress={() => switchMode('reset')} style={s.linkBtn}>
-                            <Text style={[s.linkText, { color: C.teal }]}>¿Olvidaste tu contraseña?</Text>
-                        </TouchableOpacity>
-                    )}
-                    {mode === 'reset' && (
-                        <TouchableOpacity onPress={() => switchMode('login')} style={s.linkBtn}>
-                            <Text style={[s.linkText, { color: C.teal }]}>← Volver a iniciar sesión</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    {/* Info for register */}
-                    {mode === 'register' && (
-                        <Text style={[s.infoText, { color: C.textMuted }]}>
-                            Al registrarte, tus datos existentes se migrarán a tu nueva cuenta.
-                        </Text>
-                    )}
-                </View>
-            </ScrollView>
-        </KeyboardAvoidingView>
-    );
+function friendlyError(message) {
+  const msg = message || '';
+  if (msg.includes('Invalid login')) return 'El correo o la contraseña no coinciden.';
+  if (msg.includes('already registered')) return 'Ese correo ya tiene una cuenta. Inicia sesión.';
+  if (msg.includes('valid email')) return 'Escribe un correo válido.';
+  if (msg.includes('Email not confirmed')) return 'Confirma tu correo con el enlace que te enviamos.';
+  return msg || 'Algo salió mal. Intenta de nuevo.';
 }
 
-function makeStyles(C) {
-    return StyleSheet.create({
-        container: { flex: 1, backgroundColor: C.bg },
-        scroll: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: 60 },
+export default function AuthScreen() {
+  const { signIn, signUp, resetPassword, signInWithOAuth, signInWithApple } = useAuth();
+  const { colors: C } = useTheme();
+  const insets = useSafeAreaInsets();
 
-        // Logo
-        logoSection: { alignItems: 'center', marginBottom: 32 },
-        logoCircle: { width: 72, height: 72, borderRadius: 36, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-        logoIcon: { marginTop: 1 },
-        appTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5, marginBottom: 6 },
-        appSubtitle: { fontSize: 14, fontWeight: '500' },
+  const [mode, setMode] = useState('login'); // login | register | reset
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [appleAvailable, setAppleAvailable] = useState(false);
 
-        // Card
-        card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden', paddingHorizontal: 20, paddingBottom: 24 },
-        cardAccent: { height: 3, marginHorizontal: -20 },
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => setAppleAvailable(false));
+  }, []);
 
-        // Mode tabs
-        modeTabs: { flexDirection: 'row', borderRadius: 10, borderWidth: 1, overflow: 'hidden', marginTop: 20, marginBottom: 4 },
-        modeTab: { flex: 1, paddingVertical: 11, alignItems: 'center' },
-        modeTabText: { fontSize: 13, fontWeight: '700' },
+  const switchMode = (next) => {
+    setMode(next);
+    setError('');
+    setNotice('');
+    setPassword('');
+  };
 
-        // Reset header
-        resetTitle: { fontSize: 17, fontWeight: '800', letterSpacing: -0.3, marginBottom: 4 },
-        resetSub: { fontSize: 12, marginBottom: 4 },
+  const run = async (fn) => {
+    setError('');
+    setNotice('');
+    setLoading(true);
+    try {
+      await fn();
+    } catch (e) {
+      setError(friendlyError(e?.message));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        // Form
-        label: { fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', marginTop: 16, marginBottom: 6 },
-        input: { borderRadius: 10, borderWidth: 1, fontSize: 15, paddingHorizontal: 14, paddingVertical: 12, fontWeight: '500' },
+  const handleSubmit = () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) { setError('Escribe tu correo.'); return; }
+    if (mode !== 'reset' && password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return; }
 
-        // Alert
-        alertBox: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, marginTop: 14 },
-        alertText: { fontSize: 13, fontWeight: '600' },
-
-        // Button
-        btn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
-        btnText: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.3 },
-
-        // Links
-        linkBtn: { alignItems: 'center', marginTop: 16 },
-        linkText: { fontSize: 13, fontWeight: '600' },
-        infoText: { fontSize: 11, textAlign: 'center', marginTop: 14, lineHeight: 17 },
+    run(async () => {
+      if (mode === 'login') {
+        await signIn(trimmed, password);
+      } else if (mode === 'register') {
+        await signUp(trimmed, password);
+        switchMode('login');
+        setNotice('Cuenta creada. Revisa tu correo si te pedimos confirmarlo y luego inicia sesión.');
+      } else {
+        await resetPassword(trimmed);
+        switchMode('login');
+        setNotice('Te enviamos un enlace para crear una nueva contraseña.');
+      }
     });
+  };
+
+  const submitLabel = mode === 'login' ? 'Iniciar sesión' : mode === 'register' ? 'Crear cuenta' : 'Enviar enlace';
+
+  return (
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: SPACE.xl, paddingTop: insets.top + SPACE.xl, paddingBottom: insets.bottom + SPACE.xl }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ marginBottom: SPACE.xxl }}>
+          <View style={{ width: 56, height: 56, borderRadius: RADIUS.md + 2, backgroundColor: LOGO_BG, alignItems: 'center', justifyContent: 'center', marginBottom: SPACE.lg }}>
+            <Image source={LOGO} style={{ width: 34, height: 34 }} resizeMode="contain" accessibilityLabel="Finance" />
+          </View>
+          <Txt variant="title">{mode === 'reset' ? 'Recupera tu acceso' : 'Tus finanzas, en calma'}</Txt>
+          <Txt muted style={{ marginTop: SPACE.xs, lineHeight: 21 }}>
+            {mode === 'reset'
+              ? 'Escribe tu correo y te enviamos un enlace para crear una contraseña nueva.'
+              : 'Planea tu mes, registra lo que gastas y mira cuánto te queda.'}
+          </Txt>
+        </View>
+
+        {mode !== 'reset' ? (
+          <Segmented
+            value={mode}
+            onChange={switchMode}
+            options={[{ key: 'login', label: 'Iniciar sesión' }, { key: 'register', label: 'Crear cuenta' }]}
+            style={{ marginBottom: SPACE.xl }}
+          />
+        ) : null}
+
+        <Field
+          label="Correo"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="nombre@correo.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          textContentType="emailAddress"
+          returnKeyType={mode === 'reset' ? 'send' : 'next'}
+          onSubmitEditing={mode === 'reset' ? handleSubmit : undefined}
+        />
+        {mode !== 'reset' ? (
+          <Field
+            label="Contraseña"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Mínimo 6 caracteres"
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+            textContentType={mode === 'register' ? 'newPassword' : 'password'}
+            returnKeyType="go"
+            onSubmitEditing={handleSubmit}
+          />
+        ) : null}
+
+        {error ? <Txt variant="caption" color={C.expense} style={{ marginBottom: SPACE.md }} accessibilityLiveRegion="polite">{error}</Txt> : null}
+        {notice ? <Txt variant="caption" color={C.income} style={{ marginBottom: SPACE.md }} accessibilityLiveRegion="polite">{notice}</Txt> : null}
+
+        <Button title={submitLabel} onPress={handleSubmit} loading={loading} />
+
+        {mode === 'login' ? (
+          <Pressable onPress={() => switchMode('reset')} style={{ alignSelf: 'center', padding: SPACE.md }} accessibilityRole="button">
+            <Txt variant="label" color={C.brand}>Olvidé mi contraseña</Txt>
+          </Pressable>
+        ) : null}
+        {mode === 'reset' ? (
+          <Pressable onPress={() => switchMode('login')} style={{ alignSelf: 'center', padding: SPACE.md }} accessibilityRole="button">
+            <Txt variant="label" color={C.brand}>Volver a iniciar sesión</Txt>
+          </Pressable>
+        ) : null}
+
+        {mode !== 'reset' ? (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.md, marginVertical: SPACE.lg }}>
+              <View style={{ flex: 1 }}><Divider /></View>
+              <Txt variant="caption" muted>o continúa con</Txt>
+              <View style={{ flex: 1 }}><Divider /></View>
+            </View>
+            <View style={{ gap: SPACE.sm }}>
+              {appleAvailable ? (
+                <Button title="Apple" icon="logo-apple" variant="secondary" onPress={() => run(signInWithApple)} disabled={loading} />
+              ) : null}
+              <Button title="Google" icon="logo-google" variant="secondary" onPress={() => run(() => signInWithOAuth('google'))} disabled={loading} />
+            </View>
+          </>
+        ) : null}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
 }
