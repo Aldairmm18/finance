@@ -114,13 +114,13 @@ export default function MovementsScreen() {
 
       {loaded && filtered.length > 0 ? (
         <View style={{ flexDirection: 'row', gap: SPACE.lg, marginTop: SPACE.lg }}>
-          {tipo !== 'ingreso' ? (
+          {tipo !== 'ingreso' && (tipo === 'gasto' || totals.gastos > 0) ? (
             <View>
               <Txt variant="caption" muted>Gastos</Txt>
               <Money value={totals.gastos} variant="heading" color={C.expense} />
             </View>
           ) : null}
-          {tipo !== 'gasto' ? (
+          {tipo !== 'gasto' && (tipo === 'ingreso' || totals.ingresos > 0) ? (
             <View>
               <Txt variant="caption" muted>Ingresos</Txt>
               <Money value={totals.ingresos} variant="heading" color={C.income} />

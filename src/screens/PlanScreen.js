@@ -40,7 +40,8 @@ const periodLabel = (p) => PERIODICIDADES.find(x => x.value === p)?.label || 'Me
 
 const BudgetItem = memo(function BudgetItem({ label, item, onChange, onOpenPeriod, showEssential }) {
   const { colors: C } = useTheme();
-  const digits = digitsOnly(item.monto);
+  // Un "0" guardado se muestra como campo vacío (placeholder), no como valor.
+  const digits = digitsOnly(item.monto).replace(/^0+/, '');
   const monthly = toMonthly(item.monto, item.periodicidad);
   const nonMonthly = item.periodicidad && item.periodicidad !== 'mensual';
 
