@@ -243,37 +243,42 @@ const groupDigits = (d) => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
 function GoalView() {
   const { colors: C } = useTheme();
-  const [, setBase] = useState(null);
   const [fields, setFields] = useState(null);
   const [fondo, setFondo] = useState(0);
+  const baseRef = useRef(null);     // presupuesto base completo (se guarda entero)
+  const pendingRef = useRef(null);  // datos por guardar
   const timerRef = useRef(null);
 
+  const flush = useCallback(() => {
+    clearTimeout(timerRef.current);
+    timerRef.current = null;
+    if (!pendingRef.current) return;
+    saveData(pendingRef.current);
+    pendingRef.current = null;
+  }, []);
+
+  // Cargar al enfocar; guardar lo pendiente al salir de la pantalla.
   useFocusEffect(useCallback(() => {
     let alive = true;
     loadData().then(d => {
       if (!alive) return;
-      setBase(d);
+      baseRef.current = d;
       setFields(d.tranquilidad);
     });
     loadDataMes(getCurrentMes()).then(d => { if (alive) setFondo(computePlan(d).fondoEmergencia); }).catch(() => {});
-    return () => { alive = false; };
-  }, []));
+    return () => { alive = false; flush(); };
+  }, [flush]));
 
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  useEffect(() => flush, [flush]);
 
   const update = (key, value) => {
-    setFields(prev => {
-      const next = { ...prev, [key]: value };
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        setBase(b => {
-          const merged = { ...b, tranquilidad: next };
-          saveData(merged);
-          return merged;
-        });
-      }, 700);
-      return next;
-    });
+    if (!baseRef.current) return;
+    const next = { ...baseRef.current.tranquilidad, [key]: value };
+    baseRef.current = { ...baseRef.current, tranquilidad: next };
+    pendingRef.current = baseRef.current;
+    setFields(next);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(flush, 700);
   };
 
   if (!fields) return <ActivityIndicator color={C.textMuted} style={{ marginTop: SPACE.xxl }} />;

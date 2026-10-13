@@ -19,34 +19,31 @@ const groupDigits = (d) => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
 // ─── Formulario ──────────────────────────────────────────────────────────────
 
-function PaymentSheet({ state, userId, onClose, onSaved }) {
+/** Se monta de nuevo en cada apertura (key = sheet.key); el estado inicial sale de las props. */
+function PaymentSheet({ sheet, userId, onClose, onSaved }) {
   const { colors: C } = useTheme();
-  const editing = state?.payment || null;
+  const editing = sheet.payment || null;
 
-  const [name, setName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('hogar');
-  const [subcategoryId, setSubcategoryId] = useState(null);
-  const [day, setDay] = useState('');
-  const [notifyDays, setNotifyDays] = useState(3);
+  const [name, setName] = useState(editing?.name || '');
+  const [amount, setAmount] = useState(() => (editing ? digitsOnly(Math.round(Number(editing.amount) || 0)) : ''));
+  const [category, setCategory] = useState(() => (editing ? normalizeCategory(editing.category_key) : 'hogar'));
+  const [subcategoryId, setSubcategoryId] = useState(editing?.subcategory_id || null);
+  const [day, setDay] = useState(editing ? String(editing.day_of_month) : '');
+  const [notifyDays, setNotifyDays] = useState(editing?.notify_days_before ?? 3);
   const [allSubcats, setAllSubcats] = useState([]);
   const [newSubcat, setNewSubcat] = useState(null); // null = cerrado, string = escribiendo
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
+  // Cargar subcategorías al abrir (datos externos, por eso sí va en un efecto).
   useEffect(() => {
-    if (!state) return;
-    setName(editing?.name || '');
-    setAmount(editing ? digitsOnly(Math.round(Number(editing.amount) || 0)) : '');
-    setCategory(editing ? normalizeCategory(editing.category_key) : 'hogar');
-    setSubcategoryId(editing?.subcategory_id || null);
-    setDay(editing ? String(editing.day_of_month) : '');
-    setNotifyDays(editing?.notify_days_before ?? 3);
-    setNewSubcat(null);
-    setErrors({});
-    setBusy(false);
-    if (userId) subcategoryService.getAll(userId).then(s => setAllSubcats(s || [])).catch(() => setAllSubcats([]));
-  }, [state, editing, userId]);
+    if (!sheet.open || !userId) return undefined;
+    let alive = true;
+    subcategoryService.getAll(userId)
+      .then(list => { if (alive) setAllSubcats(list || []); })
+      .catch(() => { if (alive) setAllSubcats([]); });
+    return () => { alive = false; };
+  }, [sheet.open, userId]);
 
   // Las subcategorías antiguas pueden tener claves "master" (p. ej. Servicios).
   const subcats = useMemo(
@@ -125,7 +122,7 @@ function PaymentSheet({ state, userId, onClose, onSaved }) {
 
   return (
     <Sheet
-      visible={!!state}
+      visible={sheet.open}
       onClose={busy ? () => {} : onClose}
       title={editing ? 'Editar pago fijo' : 'Nuevo pago fijo'}
       footer={(
@@ -205,7 +202,10 @@ export default function RecurringPaymentsScreen() {
   const navigation = useNavigation();
   const [payments, setPayments] = useState(null);
   const [failed, setFailed] = useState(false);
-  const [sheet, setSheet] = useState(null);
+  // `key` cambia solo al abrir, para que la hoja anime su salida al cerrar.
+  const [sheet, setSheet] = useState({ open: false, key: 0, payment: null });
+  const openSheet = (payment) => setSheet({ open: true, key: Date.now(), payment });
+  const closeSheet = () => setSheet(sh => ({ ...sh, open: false }));
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -224,7 +224,7 @@ export default function RecurringPaymentsScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => <IconButton icon="add" label="Agregar pago fijo" onPress={() => setSheet({ payment: null })} color={C.brand} />,
+      headerRight: () => <IconButton icon="add" label="Agregar pago fijo" onPress={() => openSheet(null)} color={C.brand} />,
     });
   }, [navigation, C.brand]);
 
@@ -257,12 +257,12 @@ export default function RecurringPaymentsScreen() {
                 title="Sin pagos fijos"
                 body="Agrega arriendo, servicios o suscripciones y te avisamos antes de cada cobro."
                 actionLabel="Agregar pago fijo"
-                onAction={() => setSheet({ payment: null })}
+                onAction={() => openSheet(null)}
               />
             ) : sorted.map((p, i) => (
               <View key={p.id}>
                 {i > 0 ? <Divider inset={48} /> : null}
-                <Pressable onPress={() => setSheet({ payment: p })} accessibilityRole="button" accessibilityHint="Abre el pago para editarlo">
+                <Pressable onPress={() => openSheet(p)} accessibilityRole="button" accessibilityHint="Abre el pago para editarlo">
                   {({ pressed }) => (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.md, paddingVertical: SPACE.md, opacity: pressed ? 0.6 : 1 }}>
                       <IconBadge icon={categoryIcon(p.category_key)} color={categoryColor(p.category_key, mode)} />
@@ -283,7 +283,7 @@ export default function RecurringPaymentsScreen() {
         </>
       )}
 
-      <PaymentSheet state={sheet} userId={user?.id} onClose={() => setSheet(null)} onSaved={load} />
+      <PaymentSheet key={sheet.key} sheet={sheet} userId={user?.id} onClose={closeSheet} onSaved={load} />
     </Screen>
   );
 }

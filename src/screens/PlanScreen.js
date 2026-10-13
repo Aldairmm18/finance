@@ -31,6 +31,7 @@ const ITEM_LABELS = {
 };
 
 const BASE_INCOME_KEYS = ['salario', 'bonos', 'comisiones', 'dividendos', 'otros'];
+const INCOME_LABELS = Object.fromEntries(INCOME_CATEGORIES.map(c => [c.key, c.label]));
 
 const digitsOnly = (v) => String(v ?? '').replace(/\D/g, '');
 const groupDigits = (d) => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -38,8 +39,13 @@ const periodLabel = (p) => PERIODICIDADES.find(x => x.value === p)?.label || 'Me
 
 // ─── Fila editable ───────────────────────────────────────────────────────────
 
-const BudgetItem = memo(function BudgetItem({ label, item, onChange, onOpenPeriod, showEssential }) {
+/**
+ * Fila de un monto del plan. Recibe su ubicación (section/cat/itemKey) y
+ * manejadores estables, para que memo() evite re-renderizar las demás filas.
+ */
+const BudgetItem = memo(function BudgetItem({ section, cat, itemKey, label, item, onChange, onOpenPeriod, showEssential }) {
   const { colors: C } = useTheme();
+  const change = (field, value) => onChange(section, cat, itemKey, field, value);
   // Un "0" guardado se muestra como campo vacío (placeholder), no como valor.
   const digits = digitsOnly(item.monto).replace(/^0+/, '');
   const monthly = toMonthly(item.monto, item.periodicidad);
@@ -53,7 +59,7 @@ const BudgetItem = memo(function BudgetItem({ label, item, onChange, onOpenPerio
           <Txt muted>$</Txt>
           <TextInput
             value={digits ? groupDigits(digits) : ''}
-            onChangeText={v => onChange('monto', digitsOnly(v).slice(0, 12))}
+            onChangeText={v => change('monto', digitsOnly(v).slice(0, 12))}
             placeholder="0"
             placeholderTextColor={C.textFaint}
             keyboardType="number-pad"
@@ -63,12 +69,12 @@ const BudgetItem = memo(function BudgetItem({ label, item, onChange, onOpenPerio
         </View>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.md, marginTop: 6 }}>
-        <Pressable onPress={onOpenPeriod} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Periodicidad: ${periodLabel(item.periodicidad)}`}>
+        <Pressable onPress={() => onOpenPeriod(section, cat, itemKey, item.periodicidad)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Periodicidad: ${periodLabel(item.periodicidad)}`}>
           <Txt variant="caption" color={C.brand}>{periodLabel(item.periodicidad)}</Txt>
         </Pressable>
         {showEssential ? (
           <Pressable
-            onPress={() => onChange('esencial', !item.esencial)}
+            onPress={() => change('esencial', !item.esencial)}
             hitSlop={8}
             accessibilityRole="switch"
             accessibilityState={{ checked: !!item.esencial }}
@@ -122,9 +128,10 @@ export default function PlanScreen() {
   const [mes, setMes] = useState(getCurrentMes);
   const [data, setData] = useState(null);
   const [open, setOpen] = useState({ ingresos: true });
-  const [periodTarget, setPeriodTarget] = useState(null); // { current, apply }
+  const [periodTarget, setPeriodTarget] = useState(null); // { section, cat, itemKey, current }
   const [saveState, setSaveState] = useState('idle');     // idle | saving | saved
 
+  const dataRef = useRef(null);   // copia síncrona de `data` para editar sin efectos en el updater
   const dirtyRef = useRef(null);  // { mes, data } pendiente de guardar
   const timerRef = useRef(null);
 
@@ -140,38 +147,41 @@ export default function PlanScreen() {
   // Recargar al enfocar o cambiar de mes; guardar lo pendiente al salir.
   useFocusEffect(useCallback(() => {
     let alive = true;
+    dataRef.current = null;
     setData(null);
-    loadDataMes(mes).then(d => { if (alive) setData(d); });
+    loadDataMes(mes).then(d => {
+      if (!alive) return;
+      dataRef.current = d;
+      setData(d);
+    });
     return () => { alive = false; flush(); };
   }, [mes, flush]));
 
   useEffect(() => () => flush(), [flush]);
 
-  const update = useCallback((mutator) => {
-    setData(prev => {
-      if (!prev) return prev;
-      const next = mutator(prev);
-      dirtyRef.current = { mes, data: next };
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(flush, 700);
-      return next;
-    });
+  /** Cambia un campo de ingresos, gastos o ahorro y agenda el guardado. */
+  const setField = useCallback((section, cat, itemKey, field, value) => {
+    const prev = dataRef.current;
+    if (!prev) return;
+    let next;
+    if (section === 'ingresos') {
+      next = { ...prev, ingresos: { ...prev.ingresos, [itemKey]: { ...(prev.ingresos[itemKey] || { periodicidad: 'mensual' }), [field]: value } } };
+    } else if (section === 'gastos') {
+      next = { ...prev, gastos: { ...prev.gastos, [cat]: { ...prev.gastos[cat], [itemKey]: { ...prev.gastos[cat]?.[itemKey], [field]: value } } } };
+    } else {
+      next = { ...prev, ahorro: { ...prev.ahorro, [field]: value } };
+    }
+    dataRef.current = next;
+    dirtyRef.current = { mes, data: next };
+    setData(next);
     setSaveState('idle');
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(flush, 700);
   }, [mes, flush]);
 
-  const setIngreso = useCallback((key, field, value) => update(prev => ({
-    ...prev,
-    ingresos: { ...prev.ingresos, [key]: { ...(prev.ingresos[key] || { periodicidad: 'mensual' }), [field]: value } },
-  })), [update]);
-
-  const setGasto = useCallback((cat, key, field, value) => update(prev => ({
-    ...prev,
-    gastos: { ...prev.gastos, [cat]: { ...prev.gastos[cat], [key]: { ...prev.gastos[cat]?.[key], [field]: value } } },
-  })), [update]);
-
-  const setAhorro = useCallback((field, value) => update(prev => ({
-    ...prev, ahorro: { ...prev.ahorro, [field]: value },
-  })), [update]);
+  const openPeriod = useCallback((section, cat, itemKey, current) => {
+    setPeriodTarget({ section, cat, itemKey, current });
+  }, []);
 
   const toggle = (key) => {
     LayoutAnimation.configureNext(LayoutAnimation.create(180, 'easeOut', 'opacity'));
@@ -192,7 +202,8 @@ export default function PlanScreen() {
   const expenseGroups = useMemo(() => {
     if (!data) return [];
     const known = EXPENSE_CATEGORIES.filter(c => data.gastos?.[c.key]).map(c => c.key);
-    const extra = Object.keys(data.gastos || {}).filter(k => !known.includes(k));
+    const knownSet = new Set(known);
+    const extra = Object.keys(data.gastos || {}).filter(k => !knownSet.has(k));
     return [...known, ...extra];
   }, [data]);
 
@@ -242,10 +253,12 @@ export default function PlanScreen() {
                 <View key={key}>
                   {i > 0 ? <Divider /> : null}
                   <BudgetItem
-                    label={INCOME_CATEGORIES.find(c => c.key === key)?.label || categoryLabel(key)}
+                    section="ingresos"
+                    itemKey={key}
+                    label={INCOME_LABELS[key] || categoryLabel(key)}
                     item={item}
-                    onChange={(field, value) => setIngreso(key, field, value)}
-                    onOpenPeriod={() => setPeriodTarget({ current: item.periodicidad, apply: v => setIngreso(key, 'periodicidad', v) })}
+                    onChange={setField}
+                    onOpenPeriod={openPeriod}
                   />
                 </View>
               );
@@ -269,11 +282,14 @@ export default function PlanScreen() {
                   <View key={itemKey}>
                     {i > 0 ? <Divider /> : null}
                     <BudgetItem
+                      section="gastos"
+                      cat={catKey}
+                      itemKey={itemKey}
                       label={ITEM_LABELS[itemKey] || itemKey}
                       item={item}
                       showEssential={catKey !== 'creditos'}
-                      onChange={(field, value) => setGasto(catKey, itemKey, field, value)}
-                      onOpenPeriod={() => setPeriodTarget({ current: item.periodicidad, apply: v => setGasto(catKey, itemKey, 'periodicidad', v) })}
+                      onChange={setField}
+                      onOpenPeriod={openPeriod}
                     />
                   </View>
                 ))}
@@ -287,10 +303,12 @@ export default function PlanScreen() {
             open={!!open.ahorro} onToggle={() => toggle('ahorro')}
           >
             <BudgetItem
+              section="ahorro"
+              itemKey="ahorro"
               label="Ahorro del mes"
               item={data.ahorro}
-              onChange={setAhorro}
-              onOpenPeriod={() => setPeriodTarget({ current: data.ahorro.periodicidad, apply: v => setAhorro('periodicidad', v) })}
+              onChange={setField}
+              onOpenPeriod={openPeriod}
             />
           </Group>
 
@@ -310,7 +328,10 @@ export default function PlanScreen() {
             {i > 0 ? <Divider /> : null}
             <ListRow
               title={p.label}
-              onPress={() => { periodTarget?.apply(p.value); setPeriodTarget(null); }}
+              onPress={() => {
+                if (periodTarget) setField(periodTarget.section, periodTarget.cat, periodTarget.itemKey, 'periodicidad', p.value);
+                setPeriodTarget(null);
+              }}
               right={periodTarget?.current === p.value || (!periodTarget?.current && p.value === 'mensual')
                 ? <Ionicons name="checkmark" size={18} color={C.brand} /> : <View />}
             />

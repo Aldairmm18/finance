@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -23,7 +23,8 @@ export function notifyTransactionsChanged() {
 export function useRealtimeSync(onUpdate) {
   const { user } = useAuth();
   const callbackRef = useRef(onUpdate);
-  callbackRef.current = onUpdate;
+  // Guardar el callback más reciente después del render (no durante).
+  useLayoutEffect(() => { callbackRef.current = onUpdate; });
 
   useEffect(() => {
     const local = () => callbackRef.current?.();

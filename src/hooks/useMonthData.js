@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   loadDataMes, loadDataMesCache, loadTransaccionesMesCache, fetchTransaccionesMesRemote,
 } from '../utils/storage';
 import { computePlan, computeActuals } from '../utils/calculations';
 import { useRealtimeSync } from './useRealtimeSync';
+
+const EMPTY = { mes: null, budget: null, txs: null, status: 'loading' };
 
 /**
  * Presupuesto + movimientos de un mes con estrategia stale-while-revalidate:
@@ -14,9 +16,9 @@ import { useRealtimeSync } from './useRealtimeSync';
  *         | 'live' (datos frescos) | 'offline' (la red falló, se muestra caché)
  */
 export function useMonthData(mes, { withPlan = true } = {}) {
-  const [budget, setBudget] = useState(null);
-  const [txs, setTxs] = useState(null);
-  const [status, setStatus] = useState('loading');
+  // Los datos se guardan junto con el mes al que pertenecen: si el mes cambia,
+  // lo guardado deja de valer y se muestra "cargando" sin efectos extra.
+  const [data, setData] = useState(EMPTY);
   const requestRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -28,30 +30,25 @@ export function useMonthData(mes, { withPlan = true } = {}) {
       loadTransaccionesMesCache(mes),
     ]);
     if (!current()) return;
-    setBudget(cachedBudget);
-    setTxs(cachedTxs);
-    setStatus(s => (s === 'live' ? 'live' : 'cached'));
+    setData(prev => ({
+      mes,
+      budget: cachedBudget,
+      txs: cachedTxs,
+      status: prev.mes === mes && prev.status === 'live' ? 'live' : 'cached',
+    }));
 
     const [freshBudget, freshTxs] = await Promise.all([
       withPlan ? loadDataMes(mes) : Promise.resolve(null),
       fetchTransaccionesMesRemote(mes),
     ]);
     if (!current()) return;
-    if (withPlan && freshBudget) setBudget(freshBudget);
-    if (freshTxs !== null) {
-      setTxs(freshTxs);
-      setStatus('live');
-    } else {
-      setStatus('offline');
-    }
+    setData(prev => ({
+      mes,
+      budget: withPlan && freshBudget ? freshBudget : prev.budget,
+      txs: freshTxs !== null ? freshTxs : prev.txs,
+      status: freshTxs !== null ? 'live' : 'offline',
+    }));
   }, [mes, withPlan]);
-
-  // Al cambiar de mes, no mostrar los datos del mes anterior mientras carga.
-  useEffect(() => {
-    setStatus('loading');
-    setTxs(null);
-    setBudget(null);
-  }, [mes]);
 
   useFocusEffect(useCallback(() => {
     load();
@@ -59,8 +56,17 @@ export function useMonthData(mes, { withPlan = true } = {}) {
 
   useRealtimeSync(load);
 
-  const plan = useMemo(() => computePlan(budget), [budget]);
-  const actual = useMemo(() => computeActuals(txs), [txs]);
+  const view = data.mes === mes ? data : EMPTY;
+  const plan = useMemo(() => computePlan(view.budget), [view.budget]);
+  const actual = useMemo(() => computeActuals(view.txs), [view.txs]);
 
-  return { budget, txs: txs || [], plan, actual, status, reload: load, loaded: txs !== null };
+  return {
+    budget: view.budget,
+    txs: view.txs || [],
+    plan,
+    actual,
+    status: view.status,
+    reload: load,
+    loaded: view.txs !== null,
+  };
 }

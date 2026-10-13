@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { View, Alert, Keyboard, TextInput } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { Sheet, Txt, Field, Chip, Segmented, Button } from './ui';
@@ -11,33 +11,27 @@ import { SPACE, NUM } from '../theme/tokens';
 const digitsOnly = (v) => String(v || '').replace(/\D/g, '');
 const groupDigits = (d) => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
-function TransactionSheet({ state, onClose }) {
+/**
+ * Formulario de la hoja. Se monta de nuevo en cada apertura (key = sheet.key),
+ * así el estado inicial sale directo de las props y no se ven valores viejos.
+ */
+function TransactionSheet({ sheet, onClose }) {
   const { colors: C } = useTheme();
-  const editing = state?.tx || null;
-  const visible = !!state;
+  const editing = sheet.tx || null;
+  const visible = sheet.open;
+  const initialTipo = editing?.tipo || sheet.tipo || 'gasto';
 
-  const [tipo, setTipo] = useState('gasto');
-  const [monto, setMonto] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [categoria, setCategoria] = useState('otros');
-  const [fecha, setFecha] = useState(localISODate());
+  const [tipo, setTipo] = useState(initialTipo);
+  const [monto, setMonto] = useState(() => (editing ? digitsOnly(Math.round(Number(editing.monto) || 0)) : ''));
+  const [descripcion, setDescripcion] = useState(editing?.descripcion || '');
+  const [categoria, setCategoria] = useState(() => (
+    editing ? normalizeCategory(editing.categoria) : (initialTipo === 'ingreso' ? 'salario' : 'comida')
+  ));
+  const [fecha, setFecha] = useState(() => (editing?.fecha ? dayKey(editing.fecha) : localISODate()));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [recentDays, setRecentDays] = useState([]); // [hoy, ayer] al abrir la hoja
-
-  useEffect(() => {
-    if (!state) return;
-    const tx = state.tx;
-    const t = tx?.tipo || state.tipo || 'gasto';
-    setTipo(t);
-    setMonto(tx ? digitsOnly(Math.round(Number(tx.monto) || 0)) : '');
-    setDescripcion(tx?.descripcion || '');
-    setCategoria(tx ? normalizeCategory(tx.categoria) : (t === 'ingreso' ? 'salario' : 'comida'));
-    setFecha(tx?.fecha ? dayKey(tx.fecha) : localISODate());
-    setRecentDays([localISODate(), localISODate(new Date(Date.now() - 86400000))]);
-    setError('');
-    setBusy(false);
-  }, [state]);
+  // [hoy, ayer] calculados al abrir la hoja
+  const [recentDays] = useState(() => [localISODate(), localISODate(new Date(Date.now() - 86400000))]);
 
   const cats = tipo === 'ingreso' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   const dateOptions = useMemo(() => {
@@ -157,17 +151,20 @@ function TransactionSheet({ state, onClose }) {
 
 const TransactionSheetContext = createContext({ openNew: () => {}, openEdit: () => {} });
 
+const CLOSED = { open: false, key: 0, tx: null, tipo: 'gasto' };
+
 export function TransactionSheetProvider({ children }) {
-  const [state, setState] = useState(null);
-  const openNew = useCallback((tipo = 'gasto') => setState({ tipo, key: Date.now() }), []);
-  const openEdit = useCallback((tx) => { if (tx) setState({ tx, key: Date.now() }); }, []);
-  const close = useCallback(() => setState(null), []);
+  // `key` cambia solo al abrir: al cerrar se conserva para que la hoja anime su salida.
+  const [sheet, setSheet] = useState(CLOSED);
+  const openNew = useCallback((tipo = 'gasto') => setSheet({ open: true, key: Date.now(), tx: null, tipo }), []);
+  const openEdit = useCallback((tx) => { if (tx) setSheet({ open: true, key: Date.now(), tx, tipo: tx.tipo }); }, []);
+  const close = useCallback(() => setSheet(s => ({ ...s, open: false })), []);
   const value = useMemo(() => ({ openNew, openEdit }), [openNew, openEdit]);
 
   return (
     <TransactionSheetContext.Provider value={value}>
       {children}
-      <TransactionSheet state={state} onClose={close} />
+      <TransactionSheet key={sheet.key} sheet={sheet} onClose={close} />
     </TransactionSheetContext.Provider>
   );
 }

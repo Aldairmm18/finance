@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, SectionList, ScrollView, TextInput, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
+import { View, SectionList, ScrollView, TextInput, RefreshControl, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -10,6 +10,10 @@ import { Txt, Money, Chip, MonthSwitcher, EmptyState, Divider, StatusBarBackdrop
 import { normalizeCategory, categoryLabel } from '../utils/categories';
 import { getCurrentMes, dayLabel, dayKey } from '../utils/dateUtils';
 import { SPACE, RADIUS } from '../theme/tokens';
+
+const styles = StyleSheet.create({
+  sectionHeader: { marginTop: SPACE.xl, marginBottom: SPACE.xs },
+});
 
 const TIPOS = [
   { key: 'todos', label: 'Todos' },
@@ -75,6 +79,17 @@ export default function MovementsScreen() {
       .sort(([a], [b]) => b.localeCompare(a))
       .map(([fecha, data]) => ({ title: dayLabel(fecha), data }));
   }, [filtered]);
+
+  const renderSectionHeader = useCallback(({ section }) => (
+    <Txt variant="label" muted style={styles.sectionHeader}>{section.title}</Txt>
+  ), []);
+
+  const renderItem = useCallback(({ item, index }) => (
+    <View>
+      {index > 0 ? <Divider inset={48} /> : null}
+      <TransactionRow tx={item} onPress={openEdit} showDate={false} />
+    </View>
+  ), [openEdit]);
 
   const filtering = tipo !== 'todos' || cat !== 'todas' || !!search;
 
@@ -146,15 +161,8 @@ export default function MovementsScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.textMuted} colors={[C.brand]} />}
-        renderSectionHeader={({ section }) => (
-          <Txt variant="label" muted style={{ marginTop: SPACE.xl, marginBottom: SPACE.xs }}>{section.title}</Txt>
-        )}
-        renderItem={({ item, index }) => (
-          <View>
-            {index > 0 ? <Divider inset={48} /> : null}
-            <TransactionRow tx={item} onPress={openEdit} showDate={false} />
-          </View>
-        )}
+        renderSectionHeader={renderSectionHeader}
+        renderItem={renderItem}
         ListEmptyComponent={!loaded ? (
           <ActivityIndicator color={C.textMuted} style={{ marginTop: SPACE.xxl }} />
         ) : filtering ? (

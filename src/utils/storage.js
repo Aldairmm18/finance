@@ -174,8 +174,7 @@ async function saveWithSync(id, localKey, data) {
 // ─── Presupuesto base (ajustes generales, meta de tranquilidad) ─────────────
 
 export async function loadData() {
-  const pending = await getPending();
-  const uid = await getUserId();
+  const [pending, uid] = await Promise.all([getPending(), getUserId()]);
   if (supabase && uid && !pending.base) {
     try {
       const { data, error } = await withTimeout(
@@ -206,8 +205,7 @@ export function saveData(data) {
 export async function loadDataMes(mes, options = {}) {
   const localKey = `${STORAGE_MES_PREFIX}_${mes}`;
   const strict = options?.strict === true;
-  const pending = await getPending();
-  const uid = await getUserId();
+  const [pending, uid] = await Promise.all([getPending(), getUserId()]);
 
   if (pending[mes]) {
     const local = await readJSON(localKey);

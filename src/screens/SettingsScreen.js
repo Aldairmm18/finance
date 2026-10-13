@@ -43,6 +43,7 @@ export default function SettingsScreen() {
   const [syncMessage, setSyncMessage] = useState('');
 
   const [token, setToken] = useState(null);
+  const [expiresAt, setExpiresAt] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [generating, setGenerating] = useState(false);
 
@@ -51,17 +52,19 @@ export default function SettingsScreen() {
     getPendingCount().then(setPending);
   }, []));
 
-  // Cuenta regresiva del código de vinculación.
+  // Cuenta regresiva del código: se calcula desde la hora de expiración, así
+  // no se desfasa y el código expira aunque la app haya estado en segundo plano.
   useEffect(() => {
     if (!token) return undefined;
-    const t = setInterval(() => {
-      setSecondsLeft(s => {
-        if (s <= 1) { setToken(null); return 0; }
-        return s - 1;
-      });
-    }, 1000);
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+      setSecondsLeft(left);
+      if (left === 0) setToken(null);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [token]);
+  }, [token, expiresAt]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -90,8 +93,8 @@ export default function SettingsScreen() {
         used: false,
       });
       if (error) throw error;
+      setExpiresAt(Date.now() + TOKEN_TTL_SECONDS * 1000);
       setToken(code);
-      setSecondsLeft(TOKEN_TTL_SECONDS);
     } catch (e) {
       Alert.alert('No se pudo generar el código', e?.message || 'Intenta de nuevo.');
     } finally {

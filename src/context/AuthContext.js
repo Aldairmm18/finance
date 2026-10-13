@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { clearUserIdCache, clearLocalCache } from '../utils/storage';
 import * as WebBrowser from 'expo-web-browser';
@@ -158,12 +158,14 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
+    const value = useMemo(() => ({
+        user, session, loading,
+        signIn, signUp, signOut, resetPassword, deleteAccount,
+        signInWithOAuth, signInWithApple,
+    }), [user, session, loading, signIn, signUp, signOut, resetPassword, deleteAccount, signInWithOAuth, signInWithApple]);
+
     return (
-        <AuthContext.Provider value={{
-            user, session, loading,
-            signIn, signUp, signOut, resetPassword, deleteAccount,
-            signInWithOAuth, signInWithApple,
-        }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );
