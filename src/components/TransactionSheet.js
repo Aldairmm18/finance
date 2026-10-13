@@ -11,6 +11,77 @@ import { SPACE, NUM } from '../theme/tokens';
 const digitsOnly = (v) => String(v || '').replace(/\D/g, '');
 const groupDigits = (d) => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
+const DEFAULT_CATEGORY = { ingreso: 'salario', gasto: 'comida' };
+const PLACEHOLDER = { ingreso: 'Pago cliente, quincena…', gasto: 'Mercado del mes, Uber…' };
+const SAVE_LABEL = { ingreso: 'Guardar ingreso', gasto: 'Guardar gasto' };
+const categoriesFor = (tipo) => (tipo === 'ingreso' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES);
+
+/** Valores iniciales del formulario a partir de lo que se abrió (nuevo o edición). */
+function initialForm(sheet) {
+  const tx = sheet.tx;
+  if (!tx) {
+    const tipo = sheet.tipo || 'gasto';
+    return { tipo, monto: '', descripcion: '', categoria: DEFAULT_CATEGORY[tipo], fecha: localISODate() };
+  }
+  return {
+    tipo: tx.tipo || 'gasto',
+    monto: digitsOnly(Math.round(Number(tx.monto) || 0)),
+    descripcion: tx.descripcion || '',
+    categoria: normalizeCategory(tx.categoria),
+    fecha: tx.fecha ? dayKey(tx.fecha) : localISODate(),
+  };
+}
+
+function AmountInput({ monto, onChange, error, isIncome, autoFocus }) {
+  const { colors: C } = useTheme();
+  return (
+    <View style={{ alignItems: 'center', marginBottom: SPACE.xl }}>
+      <Txt variant="label" muted>Monto</Txt>
+      <TextInput
+        value={monto ? `$${groupDigits(monto)}` : ''}
+        onChangeText={(v) => onChange(digitsOnly(v).slice(0, 12))}
+        placeholder="$0"
+        placeholderTextColor={C.textFaint}
+        keyboardType="number-pad"
+        autoFocus={autoFocus}
+        accessibilityLabel="Monto"
+        style={[{
+          fontSize: monto.length > 9 ? 32 : 40,
+          fontWeight: '600',
+          color: isIncome ? C.income : C.text,
+          alignSelf: 'stretch',
+          textAlign: 'center',
+          paddingVertical: SPACE.sm,
+        }, NUM]}
+      />
+      {error ? <Txt variant="caption" color={C.expense}>{error}</Txt> : null}
+    </View>
+  );
+}
+
+/** Título + fila de chips de selección única. */
+function ChipGroup({ label, options, selected, onSelect, style }) {
+  return (
+    <>
+      <Txt variant="label" muted style={{ marginBottom: SPACE.sm }}>{label}</Txt>
+      <View style={[{ flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm }, style]}>
+        {options.map(o => (
+          <Chip key={o.key} label={o.label} icon={o.icon} selected={selected === o.key} onPress={() => onSelect(o.key)} />
+        ))}
+      </View>
+    </>
+  );
+}
+
+function SheetFooter({ editing, tipo, busy, onSave, onDelete }) {
+  return (
+    <View style={{ gap: SPACE.sm }}>
+      <Button title={editing ? 'Guardar cambios' : SAVE_LABEL[tipo]} onPress={onSave} loading={busy} />
+      {editing ? <Button title="Eliminar" variant="danger" onPress={onDelete} disabled={busy} /> : null}
+    </View>
+  );
+}
+
 /**
  * Formulario de la hoja. Se monta de nuevo en cada apertura (key = sheet.key),
  * así el estado inicial sale directo de las props y no se ven valores viejos.
@@ -18,32 +89,27 @@ const groupDigits = (d) => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 function TransactionSheet({ sheet, onClose }) {
   const { colors: C } = useTheme();
   const editing = sheet.tx || null;
-  const visible = sheet.open;
-  const initialTipo = editing?.tipo || sheet.tipo || 'gasto';
-
-  const [tipo, setTipo] = useState(initialTipo);
-  const [monto, setMonto] = useState(() => (editing ? digitsOnly(Math.round(Number(editing.monto) || 0)) : ''));
-  const [descripcion, setDescripcion] = useState(editing?.descripcion || '');
-  const [categoria, setCategoria] = useState(() => (
-    editing ? normalizeCategory(editing.categoria) : (initialTipo === 'ingreso' ? 'salario' : 'comida')
-  ));
-  const [fecha, setFecha] = useState(() => (editing?.fecha ? dayKey(editing.fecha) : localISODate()));
+  const [form, setForm] = useState(() => initialForm(sheet));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   // [hoy, ayer] calculados al abrir la hoja
   const [recentDays] = useState(() => [localISODate(), localISODate(new Date(Date.now() - 86400000))]);
+  const { tipo, monto, descripcion, categoria, fecha } = form;
+  const set = (patch) => setForm(f => ({ ...f, ...patch }));
 
-  const cats = tipo === 'ingreso' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   const dateOptions = useMemo(() => {
-    const opts = [...recentDays];
-    if (fecha && !opts.includes(fecha)) opts.push(fecha);
-    return opts;
+    const days = recentDays.includes(fecha) ? recentDays : [...recentDays, fecha];
+    return days.map(d => ({ key: d, label: dayLabel(d) }));
   }, [recentDays, fecha]);
 
   const changeTipo = (t) => {
-    setTipo(t);
-    const valid = (t === 'ingreso' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).some(c => c.key === categoria);
-    if (!valid) setCategoria(t === 'ingreso' ? 'salario' : 'comida');
+    const keep = categoriesFor(t).some(c => c.key === categoria);
+    set({ tipo: t, categoria: keep ? categoria : DEFAULT_CATEGORY[t] });
+  };
+
+  const changeMonto = (value) => {
+    set({ monto: value });
+    setError('');
   };
 
   const save = async () => {
@@ -64,40 +130,31 @@ function TransactionSheet({ sheet, onClose }) {
     }
   };
 
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await deleteTransaction(editing.id);
+      notifyTransactionsChanged();
+      onClose();
+    } catch (e) {
+      setBusy(false);
+      setError(e?.message || 'No se pudo eliminar.');
+    }
+  };
+
   const confirmDelete = () => {
     Alert.alert('Eliminar movimiento', 'Esta acción no se puede deshacer.', [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          setBusy(true);
-          try {
-            await deleteTransaction(editing.id);
-            notifyTransactionsChanged();
-            onClose();
-          } catch (e) {
-            setBusy(false);
-            setError(e?.message || 'No se pudo eliminar.');
-          }
-        },
-      },
+      { text: 'Eliminar', style: 'destructive', onPress: remove },
     ]);
   };
 
-  const amountColor = tipo === 'ingreso' ? C.income : C.text;
-
   return (
     <Sheet
-      visible={visible}
+      visible={sheet.open}
       onClose={busy ? () => {} : onClose}
       title={editing ? 'Editar movimiento' : 'Nuevo movimiento'}
-      footer={(
-        <View style={{ gap: SPACE.sm }}>
-          <Button title={editing ? 'Guardar cambios' : tipo === 'ingreso' ? 'Guardar ingreso' : 'Guardar gasto'} onPress={save} loading={busy} />
-          {editing ? <Button title="Eliminar" variant="danger" onPress={confirmDelete} disabled={busy} /> : null}
-        </View>
-      )}
+      footer={<SheetFooter editing={editing} tipo={tipo} busy={busy} onSave={save} onDelete={confirmDelete} />}
     >
       <Segmented
         value={tipo}
@@ -105,44 +162,29 @@ function TransactionSheet({ sheet, onClose }) {
         options={[{ key: 'gasto', label: 'Gasto' }, { key: 'ingreso', label: 'Ingreso', color: C.income }]}
         style={{ marginBottom: SPACE.xl }}
       />
-
-      <View style={{ alignItems: 'center', marginBottom: SPACE.xl }}>
-        <Txt variant="label" muted>Monto</Txt>
-        <TextInput
-          value={monto ? `$${groupDigits(monto)}` : ''}
-          onChangeText={(v) => { setMonto(digitsOnly(v).slice(0, 12)); if (error) setError(''); }}
-          placeholder="$0"
-          placeholderTextColor={C.textFaint}
-          keyboardType="number-pad"
-          autoFocus={!editing}
-          accessibilityLabel="Monto"
-          style={[{ fontSize: monto.length > 9 ? 32 : 40, fontWeight: '600', color: amountColor, alignSelf: 'stretch', textAlign: 'center', paddingVertical: SPACE.sm }, NUM]}
-        />
-        {error ? <Txt variant="caption" color={C.expense}>{error}</Txt> : null}
-      </View>
-
+      <AmountInput monto={monto} onChange={changeMonto} error={error} isIncome={tipo === 'ingreso'} autoFocus={!editing} />
       <Field
         label="Descripción"
         value={descripcion}
-        onChangeText={setDescripcion}
-        placeholder={tipo === 'ingreso' ? 'Pago cliente, quincena…' : 'Mercado del mes, Uber…'}
+        onChangeText={(v) => set({ descripcion: v })}
+        placeholder={PLACEHOLDER[tipo]}
         returnKeyType="done"
         maxLength={80}
       />
-
-      <Txt variant="label" muted style={{ marginBottom: SPACE.sm }}>Categoría</Txt>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm, marginBottom: SPACE.xl }}>
-        {cats.map(c => (
-          <Chip key={c.key} label={c.label} icon={c.icon} selected={categoria === c.key} onPress={() => setCategoria(c.key)} />
-        ))}
-      </View>
-
-      <Txt variant="label" muted style={{ marginBottom: SPACE.sm }}>Fecha</Txt>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm, marginBottom: SPACE.md }}>
-        {dateOptions.map(d => (
-          <Chip key={d} label={dayLabel(d)} selected={fecha === d} onPress={() => setFecha(d)} />
-        ))}
-      </View>
+      <ChipGroup
+        label="Categoría"
+        options={categoriesFor(tipo)}
+        selected={categoria}
+        onSelect={(k) => set({ categoria: k })}
+        style={{ marginBottom: SPACE.xl }}
+      />
+      <ChipGroup
+        label="Fecha"
+        options={dateOptions}
+        selected={fecha}
+        onSelect={(d) => set({ fecha: d })}
+        style={{ marginBottom: SPACE.md }}
+      />
     </Sheet>
   );
 }

@@ -12,6 +12,11 @@ import { mesLabel, addMes } from '../utils/dateUtils';
 
 export const TAB_BAR_HEIGHT = 64;
 
+const styles = StyleSheet.create({
+  screenContent: { paddingTop: SPACE.md, paddingHorizontal: SPACE.lg, paddingBottom: SPACE.xxl * 2 },
+  sheetContent: { paddingHorizontal: SPACE.xl, paddingTop: SPACE.sm, paddingBottom: SPACE.sm },
+});
+
 // ─── Texto ───────────────────────────────────────────────────────────────────
 
 export function Txt({ variant = 'body', color, muted, faint, center, style, children, ...rest }) {
@@ -50,18 +55,22 @@ export function Screen({ children, scroll = true, refreshing, onRefresh, content
   if (!scroll) {
     return <View style={[{ flex: 1, backgroundColor: C.bg }, padding, contentStyle]}>{children}</View>;
   }
+  // El margen del notch/barra va en espaciadores (no en el padding del
+  // contenedor) para que un cambio de insets no re-mida toda la lista.
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[padding, contentStyle]}
+        contentContainerStyle={[styles.screenContent, contentStyle]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
         refreshControl={onRefresh ? (
           <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={C.textMuted} colors={[C.brand]} />
         ) : undefined}
       >
+        {withTopInset ? <View style={{ height: insets.top }} /> : null}
         {children}
+        {withTopInset ? null : <View style={{ height: insets.bottom }} />}
       </ScrollView>
       {withTopInset ? <StatusBarBackdrop /> : null}
     </View>
@@ -329,7 +338,7 @@ export function Sheet({ visible, onClose, title, children, footer }) {
           </View>
           <ScrollView
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingHorizontal: SPACE.xl, paddingTop: SPACE.sm, paddingBottom: SPACE.sm }}
+            contentContainerStyle={styles.sheetContent}
             showsVerticalScrollIndicator={false}
           >
             {children}

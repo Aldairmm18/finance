@@ -86,8 +86,7 @@ export const notificationService = {
   async rescheduleAll(payments) {
     if (isExpoGo) return;
     await this.cancelAllPaymentNotifications();
-    for (const p of (payments || []).filter(p => p.is_active)) {
-      await this.schedulePaymentReminder(p);
-    }
+    // Cada recordatorio es independiente: se programan en paralelo.
+    await Promise.all((payments || []).filter(p => p.is_active).map(p => this.schedulePaymentReminder(p)));
   },
 };

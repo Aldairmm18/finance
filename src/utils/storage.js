@@ -274,25 +274,31 @@ export async function syncData() {
   const uid = await getUserId();
   if (!uid) return { success: false, reason: 'Inicia sesión para sincronizar' };
 
-  const pending = await getPending();
-  const ids = Object.keys(pending);
-  let uploaded = 0;
-  try {
-    for (const id of ids) {
-      const key = id === 'base' ? STORAGE_KEY : `${STORAGE_MES_PREFIX}_${id}`;
-      const data = await readJSON(key);
-      if (data) {
-        await upsertRemote(id, data);
-        uploaded += 1;
-      }
-      await setPending(id, false);
-    }
-    const ts = new Date().toISOString();
-    await AsyncStorage.setItem(SYNC_KEY, ts);
-    return { success: true, uploaded, timestamp: ts };
-  } catch (e) {
-    return { success: false, reason: e?.message === 'timeout' ? 'El servidor no respondió' : (e?.message || 'Error de conexión') };
+  const ids = Object.keys(await getPending());
+
+  // Cada mes pendiente es un registro independiente: se suben en paralelo y
+  // un fallo no impide subir los demás.
+  const results = await Promise.allSettled(ids.map(async (id) => {
+    const key = id === 'base' ? STORAGE_KEY : `${STORAGE_MES_PREFIX}_${id}`;
+    const data = await readJSON(key);
+    if (data) await upsertRemote(id, data);
+    return { id, uploaded: !!data };
+  }));
+
+  // La lista de pendientes se actualiza una sola vez (evita escrituras cruzadas).
+  const done = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+  const remaining = await getPending();
+  done.forEach(({ id }) => { delete remaining[id]; });
+  await writeJSON(PENDING_KEY, remaining);
+
+  const failed = results.find(r => r.status === 'rejected');
+  if (failed) {
+    const msg = failed.reason?.message;
+    return { success: false, reason: msg === 'timeout' ? 'El servidor no respondió' : (msg || 'Error de conexión') };
   }
+  const ts = new Date().toISOString();
+  await AsyncStorage.setItem(SYNC_KEY, ts);
+  return { success: true, uploaded: done.filter(d => d.uploaded).length, timestamp: ts };
 }
 
 export async function getPendingCount() {

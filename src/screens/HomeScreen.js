@@ -42,19 +42,11 @@ function RolloverCard({ offer, onApply, onDismiss, busy }) {
   );
 }
 
-export default function HomeScreen() {
-  const { colors: C, mode } = useTheme();
-  const { user } = useAuth();
-  const navigation = useNavigation();
-  const { openNew, openEdit } = useTransactionSheet();
-  const mes = getCurrentMes();
-  const { txs, plan, actual, status, reload, loaded } = useMonthData(mes);
-  const [refreshing, setRefreshing] = useState(false);
+/** Aviso de sobrante del mes anterior: se consulta solo con datos frescos. */
+function useRolloverOffer(mes, txs, status, reload) {
   const [offer, setOffer] = useState(null);
-  const [offerBusy, setOfferBusy] = useState(false);
-  const [payments, setPayments] = useState([]);
+  const [busy, setBusy] = useState(false);
 
-  // El aviso de sobrante y los pagos se piden solo con datos frescos.
   useEffect(() => {
     if (status !== 'live') return undefined;
     let alive = true;
@@ -62,20 +54,8 @@ export default function HomeScreen() {
     return () => { alive = false; };
   }, [status, mes, txs]);
 
-  useEffect(() => {
-    if (!user?.id || status !== 'live') return undefined;
-    let alive = true;
-    recurringPaymentService.getAll(user.id).then(list => { if (alive) setPayments(list || []); }).catch(() => {});
-    return () => { alive = false; };
-  }, [user?.id, status]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try { await reload(); } finally { setRefreshing(false); }
-  }, [reload]);
-
-  const handleApplyRollover = async () => {
-    setOfferBusy(true);
+  const apply = async () => {
+    setBusy(true);
     try {
       await applyRollover(mes, offer.amount, mesLabel(offer.prevMes).toLowerCase());
       setOffer(null);
@@ -83,19 +63,170 @@ export default function HomeScreen() {
     } catch (e) {
       Alert.alert('No se pudo pasar el sobrante', e?.message || 'Intenta de nuevo.');
     } finally {
-      setOfferBusy(false);
+      setBusy(false);
     }
   };
 
-  const recent = useMemo(() => txs.slice(0, 5), [txs]);
-  const topCategories = useMemo(() => compareByCategory(plan, actual).slice(0, 3), [plan, actual]);
-  const upcoming = useMemo(() => {
+  const dismiss = () => {
+    dismissRollover(mes);
+    setOffer(null);
+  };
+
+  return { offer, busy, apply, dismiss };
+}
+
+/** Próximos 2 pagos fijos del usuario. */
+function useUpcomingPayments(userId, status) {
+  const [payments, setPayments] = useState([]);
+
+  useEffect(() => {
+    if (!userId || status !== 'live') return undefined;
+    let alive = true;
+    recurringPaymentService.getAll(userId).then(list => { if (alive) setPayments(list || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, [userId, status]);
+
+  return useMemo(() => {
     const now = new Date();
     return payments
       .map(p => ({ ...p, next: nextMonthlyDate(p.day_of_month, now) }))
       .sort((a, b) => a.next - b.next)
       .slice(0, 2);
   }, [payments]);
+}
+
+function HeroAmount({ plan, actual, onPlan }) {
+  const { colors: C } = useTheme();
+  if (plan.gastos <= 0) {
+    return (
+      <View style={{ marginBottom: SPACE.xl }}>
+        <Txt variant="label" muted>Balance del mes</Txt>
+        <Money value={actual.balance} variant="display" color={actual.balance < 0 ? C.expense : C.text} style={{ marginTop: 2, marginBottom: SPACE.sm }} />
+        <Button title="Armar mi plan del mes" variant="secondary" icon="wallet-outline" onPress={onPlan} style={{ alignSelf: 'flex-start', minHeight: 40 }} />
+      </View>
+    );
+  }
+  const remaining = plan.gastos - actual.gastos;
+  const over = remaining < 0;
+  return (
+    <View style={{ marginBottom: SPACE.xl }}>
+      <Txt variant="label" muted>{over ? 'Te pasaste del plan por' : 'Te queda por gastar'}</Txt>
+      <Money value={Math.abs(remaining)} variant="display" color={over ? C.expense : C.text} style={{ marginTop: 2, marginBottom: SPACE.md }} />
+      <ProgressBar ratio={actual.gastos / plan.gastos} color={over ? C.expense : C.brand} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACE.sm }}>
+        <Txt variant="caption" muted>Gastado {formatCOP(actual.gastos)}</Txt>
+        <Txt variant="caption" muted>de {formatCOP(plan.gastos)}</Txt>
+      </View>
+    </View>
+  );
+}
+
+function TotalCard({ label, value, planned, color }) {
+  return (
+    <Card style={{ flex: 1 }}>
+      <Txt variant="caption" muted>{label}</Txt>
+      <Money value={value} variant="heading" color={color} style={{ marginTop: 4 }} adjustsFontSizeToFit />
+      {planned > 0 ? <Txt variant="caption" faint style={{ marginTop: 2 }}>Plan {formatCOP(planned)}</Txt> : null}
+    </Card>
+  );
+}
+
+function CategoryProgress({ row, first }) {
+  const { colors: C, mode } = useTheme();
+  const over = row.planned > 0 && row.spent > row.planned;
+  return (
+    <View style={{ marginTop: first ? 0 : SPACE.lg }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+        <Txt>{categoryLabel(row.key)}</Txt>
+        <Txt variant="caption" muted style={{ alignSelf: 'center' }}>
+          <Txt variant="caption" color={over ? C.expense : C.text}>{formatCOP(row.spent)}</Txt>
+          {row.planned > 0 ? ` de ${formatCOP(row.planned)}` : ''}
+        </Txt>
+      </View>
+      <ProgressBar ratio={row.planned > 0 ? row.spent / row.planned : 1} color={over ? C.expense : categoryColor(row.key, mode)} height={4} />
+    </View>
+  );
+}
+
+function TopCategoriesSection({ rows, onMore }) {
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <SectionTitle title="En qué se va" action="Ver análisis" onAction={onMore} />
+      <Card>
+        {rows.map((row, i) => <CategoryProgress key={row.key} row={row} first={i === 0} />)}
+      </Card>
+    </>
+  );
+}
+
+function UpcomingSection({ payments, onMore }) {
+  const { mode } = useTheme();
+  if (payments.length === 0) return null;
+  return (
+    <>
+      <SectionTitle title="Próximos pagos" action="Ver todos" onAction={onMore} />
+      <Card style={{ paddingVertical: SPACE.xs }}>
+        {payments.map((p, i) => (
+          <View key={p.id}>
+            {i > 0 ? <Divider inset={48} /> : null}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.md, paddingVertical: SPACE.md }}>
+              <IconBadge icon={categoryIcon(p.category_key)} color={categoryColor(p.category_key, mode)} />
+              <View style={{ flex: 1 }}>
+                <Txt numberOfLines={1}>{p.name}</Txt>
+                <Txt variant="caption" muted style={{ marginTop: 2 }}>{dayLabel(localISODate(p.next))}</Txt>
+              </View>
+              <Money value={p.amount} />
+            </View>
+          </View>
+        ))}
+      </Card>
+    </>
+  );
+}
+
+function RecentSection({ txs, onMore, onAdd, onOpen }) {
+  return (
+    <>
+      <SectionTitle title="Recientes" action={txs.length ? 'Ver todos' : undefined} onAction={onMore} />
+      <Card style={{ paddingVertical: SPACE.xs }}>
+        {txs.length === 0 ? (
+          <EmptyState
+            icon="receipt-outline"
+            title="Sin movimientos este mes"
+            body="Registra un gasto o ingreso con el botón +, o envíalo por el bot de Telegram."
+            actionLabel="Registrar movimiento"
+            onAction={onAdd}
+          />
+        ) : txs.map((tx, i) => (
+          <View key={String(tx.id)}>
+            {i > 0 ? <Divider inset={48} /> : null}
+            <TransactionRow tx={tx} onPress={onOpen} />
+          </View>
+        ))}
+      </Card>
+    </>
+  );
+}
+
+export default function HomeScreen() {
+  const { colors: C } = useTheme();
+  const { user } = useAuth();
+  const navigation = useNavigation();
+  const { openNew, openEdit } = useTransactionSheet();
+  const mes = getCurrentMes();
+  const { txs, plan, actual, status, reload, loaded } = useMonthData(mes);
+  const [refreshing, setRefreshing] = useState(false);
+  const rollover = useRolloverOffer(mes, txs, status, reload);
+  const upcoming = useUpcomingPayments(user?.id, status);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await reload(); } finally { setRefreshing(false); }
+  }, [reload]);
+
+  const recent = useMemo(() => txs.slice(0, 5), [txs]);
+  const topCategories = useMemo(() => compareByCategory(plan, actual).slice(0, 3), [plan, actual]);
 
   const header = (
     <ScreenHeader
@@ -114,124 +245,26 @@ export default function HomeScreen() {
     );
   }
 
-  const hasPlan = plan.gastos > 0;
-  const remaining = plan.gastos - actual.gastos;
-  const over = hasPlan && remaining < 0;
-
   return (
     <Screen refreshing={refreshing} onRefresh={onRefresh}>
       {header}
       <StatusNote status={status} />
-
-      {offer ? (
-        <RolloverCard
-          offer={offer}
-          busy={offerBusy}
-          onApply={handleApplyRollover}
-          onDismiss={() => { dismissRollover(mes); setOffer(null); }}
-        />
+      {rollover.offer ? (
+        <RolloverCard offer={rollover.offer} busy={rollover.busy} onApply={rollover.apply} onDismiss={rollover.dismiss} />
       ) : null}
-
-      {/* ── Cifra principal ── */}
-      <View style={{ marginBottom: SPACE.xl }}>
-        {hasPlan ? (
-          <>
-            <Txt variant="label" muted>{over ? 'Te pasaste del plan por' : 'Te queda por gastar'}</Txt>
-            <Money value={Math.abs(remaining)} variant="display" color={over ? C.expense : C.text} style={{ marginTop: 2, marginBottom: SPACE.md }} />
-            <ProgressBar ratio={actual.gastos / plan.gastos} color={over ? C.expense : C.brand} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACE.sm }}>
-              <Txt variant="caption" muted>Gastado {formatCOP(actual.gastos)}</Txt>
-              <Txt variant="caption" muted>de {formatCOP(plan.gastos)}</Txt>
-            </View>
-          </>
-        ) : (
-          <>
-            <Txt variant="label" muted>Balance del mes</Txt>
-            <Money value={actual.balance} variant="display" color={actual.balance < 0 ? C.expense : C.text} style={{ marginTop: 2, marginBottom: SPACE.sm }} />
-            <Button title="Armar mi plan del mes" variant="secondary" icon="wallet-outline" onPress={() => navigation.navigate('Plan')} style={{ alignSelf: 'flex-start', minHeight: 40 }} />
-          </>
-        )}
-      </View>
-
-      {/* ── Ingresos y gastos reales ── */}
+      <HeroAmount plan={plan} actual={actual} onPlan={() => navigation.navigate('Plan')} />
       <View style={{ flexDirection: 'row', gap: SPACE.md }}>
-        <Card style={{ flex: 1 }}>
-          <Txt variant="caption" muted>Ingresos</Txt>
-          <Money value={actual.ingresos} variant="heading" color={C.income} style={{ marginTop: 4 }} adjustsFontSizeToFit />
-          {plan.ingresos > 0 ? <Txt variant="caption" faint style={{ marginTop: 2 }}>Plan {formatCOP(plan.ingresos)}</Txt> : null}
-        </Card>
-        <Card style={{ flex: 1 }}>
-          <Txt variant="caption" muted>Gastos</Txt>
-          <Money value={actual.gastos} variant="heading" color={C.expense} style={{ marginTop: 4 }} adjustsFontSizeToFit />
-          {plan.gastos > 0 ? <Txt variant="caption" faint style={{ marginTop: 2 }}>Plan {formatCOP(plan.gastos)}</Txt> : null}
-        </Card>
+        <TotalCard label="Ingresos" value={actual.ingresos} planned={plan.ingresos} color={C.income} />
+        <TotalCard label="Gastos" value={actual.gastos} planned={plan.gastos} color={C.expense} />
       </View>
-
-      {/* ── Categorías principales ── */}
-      {topCategories.length > 0 ? (
-        <>
-          <SectionTitle title="En qué se va" action="Ver análisis" onAction={() => navigation.navigate('Analisis')} />
-          <Card>
-            {topCategories.map((row, i) => {
-              const color = categoryColor(row.key, mode);
-              const overCat = row.planned > 0 && row.spent > row.planned;
-              return (
-                <View key={row.key} style={{ marginTop: i === 0 ? 0 : SPACE.lg }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Txt>{categoryLabel(row.key)}</Txt>
-                    <Txt variant="caption" muted style={{ alignSelf: 'center' }}>
-                      <Txt variant="caption" color={overCat ? C.expense : C.text}>{formatCOP(row.spent)}</Txt>
-                      {row.planned > 0 ? ` de ${formatCOP(row.planned)}` : ''}
-                    </Txt>
-                  </View>
-                  <ProgressBar ratio={row.planned > 0 ? row.spent / row.planned : 1} color={overCat ? C.expense : color} height={4} />
-                </View>
-              );
-            })}
-          </Card>
-        </>
-      ) : null}
-
-      {/* ── Próximos pagos fijos ── */}
-      {upcoming.length > 0 ? (
-        <>
-          <SectionTitle title="Próximos pagos" action="Ver todos" onAction={() => navigation.navigate('Pagos')} />
-          <Card style={{ paddingVertical: SPACE.xs }}>
-            {upcoming.map((p, i) => (
-              <View key={p.id}>
-                {i > 0 ? <Divider inset={48} /> : null}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.md, paddingVertical: SPACE.md }}>
-                  <IconBadge icon={categoryIcon(p.category_key)} color={categoryColor(p.category_key, mode)} />
-                  <View style={{ flex: 1 }}>
-                    <Txt numberOfLines={1}>{p.name}</Txt>
-                    <Txt variant="caption" muted style={{ marginTop: 2 }}>{dayLabel(localISODate(p.next))}</Txt>
-                  </View>
-                  <Money value={p.amount} />
-                </View>
-              </View>
-            ))}
-          </Card>
-        </>
-      ) : null}
-
-      {/* ── Movimientos recientes ── */}
-      <SectionTitle title="Recientes" action={recent.length ? 'Ver todos' : undefined} onAction={() => navigation.navigate('Movimientos')} />
-      <Card style={{ paddingVertical: SPACE.xs }}>
-        {recent.length === 0 ? (
-          <EmptyState
-            icon="receipt-outline"
-            title="Sin movimientos este mes"
-            body="Registra un gasto o ingreso con el botón +, o envíalo por el bot de Telegram."
-            actionLabel="Registrar movimiento"
-            onAction={() => openNew('gasto')}
-          />
-        ) : recent.map((tx, i) => (
-          <View key={tx.id ?? i}>
-            {i > 0 ? <Divider inset={48} /> : null}
-            <TransactionRow tx={tx} onPress={openEdit} />
-          </View>
-        ))}
-      </Card>
+      <TopCategoriesSection rows={topCategories} onMore={() => navigation.navigate('Analisis')} />
+      <UpcomingSection payments={upcoming} onMore={() => navigation.navigate('Pagos')} />
+      <RecentSection
+        txs={recent}
+        onMore={() => navigation.navigate('Movimientos')}
+        onAdd={() => openNew('gasto')}
+        onOpen={openEdit}
+      />
     </Screen>
   );
 }

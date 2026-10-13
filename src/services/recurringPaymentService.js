@@ -12,10 +12,11 @@ export const recurringPaymentService = {
     return data;
   },
 
-  async create(userId, payload) {
+  /** El dueño lo asigna la base de datos (user_id DEFAULT auth.uid() + RLS). */
+  async create(payload) {
     const { data, error } = await supabase
       .from('recurring_payments')
-      .insert([{ ...payload, user_id: userId }])
+      .insert([payload])
       .select()
       .single();
     if (error) throw error;

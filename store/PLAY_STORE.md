@@ -2,6 +2,8 @@
 
 ## 1. Antes de la primera build
 
+0. **Supabase:** ejecuta `owner_defaults_migration.sql` en el SQL Editor **antes** de publicar una build hecha después del commit de React Doctor 100/100: la app ya no envía `user_id` al crear pagos fijos y subcategorías; lo asigna la base de datos.
+
 1. **Supabase:** ejecuta `account_deletion_migration.sql` en el SQL Editor (habilita "Eliminar mi cuenta").
 2. **Páginas legales:** se publican solas con GitHub Pages desde `docs/` → https://aldairmm18.github.io/finance/privacy-policy.html y https://aldairmm18.github.io/finance/delete-account.html
 4. **Inicio con Google:** confirma que esté configurado en Supabase → Authentication → Providers; un botón que falla es motivo de rechazo. (Facebook se retiró de la app.)

@@ -55,7 +55,7 @@ function PaymentSheet({ sheet, userId, onClose, onSaved }) {
     const label = (newSubcat || '').trim();
     if (!label) { setNewSubcat(null); return; }
     try {
-      const created = await subcategoryService.create(userId, {
+      const created = await subcategoryService.create({
         name: label,
         category_key: category,
         icon: 'tag-outline',
@@ -90,7 +90,7 @@ function PaymentSheet({ sheet, userId, onClose, onSaved }) {
     };
     try {
       if (editing) await recurringPaymentService.update(editing.id, payload);
-      else await recurringPaymentService.create(userId, payload);
+      else await recurringPaymentService.create(payload);
       await onSaved();
       onClose();
     } catch (e) {

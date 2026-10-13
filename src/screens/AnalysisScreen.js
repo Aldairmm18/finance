@@ -118,120 +118,168 @@ function MonthView() {
 
 // ─── Año ─────────────────────────────────────────────────────────────────────
 
-function YearView() {
-  const { colors: C, mode } = useTheme();
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
-  const [txs, setTxs] = useState(null);
-  const [failed, setFailed] = useState(false);
+/** Movimientos de un año. Los datos se guardan junto con su año (sin efectos de reinicio). */
+function useYearTransactions(year) {
+  const [data, setData] = useState({ year: null, txs: null, failed: false });
   const reqRef = useRef(0);
 
   const load = useCallback(async () => {
     const id = ++reqRef.current;
     const rows = await loadTransaccionesAnio(year);
     if (reqRef.current !== id) return;
-    setFailed(rows === null);
-    setTxs(rows || []);
+    setData({ year, txs: rows || [], failed: rows === null });
   }, [year]);
 
-  useEffect(() => { setTxs(null); }, [year]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useRealtimeSync(load);
 
-  const stats = useMemo(() => {
-    if (!txs) return null;
-    const months = Array.from({ length: 12 }, () => ({ ingresos: 0, gastos: 0 }));
-    for (const tx of txs) {
-      const idx = Number(String(tx.fecha || '').split('-')[1]) - 1;
-      if (idx < 0 || idx > 11 || Number.isNaN(idx)) continue;
-      const m = Number(tx.monto) || 0;
-      if (tx.tipo === 'ingreso') months[idx].ingresos += m; else months[idx].gastos += m;
-    }
-    const totals = computeActuals(txs);
-    const topCats = Object.entries(totals.byCategory).sort(([, a], [, b]) => b - a).slice(0, 5);
-    const max = Math.max(1, ...months.map(m => Math.max(m.ingresos, m.gastos)));
-    return { months, totals, topCats, max };
-  }, [txs]);
+  const current = data.year === year;
+  return { txs: current ? data.txs : null, failed: current && data.failed, reload: load };
+}
 
+/** Totales por mes, totales del año y categorías con más gasto. */
+function yearStats(txs, year) {
+  const months = Array.from({ length: 12 }, (_, i) => ({ key: `${year}-${i + 1}`, label: monthShort(i), ingresos: 0, gastos: 0 }));
+  for (const tx of txs) {
+    const month = months[Number(String(tx.fecha || '').split('-')[1]) - 1];
+    if (!month) continue;
+    const field = tx.tipo === 'ingreso' ? 'ingresos' : 'gastos';
+    month[field] += Number(tx.monto) || 0;
+  }
+  const totals = computeActuals(txs);
+  const topCats = Object.entries(totals.byCategory).sort(([, x], [, y]) => y - x).slice(0, 5);
+  const max = Math.max(1, ...months.map(m => Math.max(m.ingresos, m.gastos)));
+  return { months: months.filter(m => m.ingresos || m.gastos), totals, topCats, max };
+}
+
+function YearSwitcher({ year, onChange, maxYear }) {
+  const { colors: C } = useTheme();
+  const canNext = year < maxYear;
   return (
-    <>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <IconButton icon="chevron-back" label="Año anterior" onPress={() => setYear(y => y - 1)} color={C.textMuted} />
-        <Txt variant="heading">{year}</Txt>
-        <View style={{ opacity: year < currentYear ? 1 : 0.3 }} pointerEvents={year < currentYear ? 'auto' : 'none'}>
-          <IconButton icon="chevron-forward" label="Año siguiente" onPress={() => setYear(y => y + 1)} color={C.textMuted} />
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <IconButton icon="chevron-back" label="Año anterior" onPress={() => onChange(year - 1)} color={C.textMuted} />
+      <Txt variant="heading">{year}</Txt>
+      <View style={{ opacity: canNext ? 1 : 0.3 }} pointerEvents={canNext ? 'auto' : 'none'}>
+        <IconButton icon="chevron-forward" label="Año siguiente" onPress={() => onChange(year + 1)} color={C.textMuted} />
+      </View>
+    </View>
+  );
+}
+
+function YearTotals({ totals }) {
+  const { colors: C } = useTheme();
+  return (
+    <Card style={{ marginTop: SPACE.md }}>
+      <View style={{ flexDirection: 'row' }}>
+        <View style={{ flex: 1 }}>
+          <Txt variant="caption" muted>Ingresos</Txt>
+          <Money value={totals.ingresos} variant="heading" color={C.income} adjustsFontSizeToFit />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt variant="caption" muted>Gastos</Txt>
+          <Money value={totals.gastos} variant="heading" color={C.expense} adjustsFontSizeToFit />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt variant="caption" muted>Balance</Txt>
+          <Money value={totals.balance} variant="heading" color={totals.balance < 0 ? C.expense : C.text} adjustsFontSizeToFit />
         </View>
       </View>
+    </Card>
+  );
+}
 
-      {!stats ? <ActivityIndicator color={C.textMuted} style={{ marginTop: SPACE.xxl }} /> : failed ? (
-        <Card style={{ marginTop: SPACE.md }}><EmptyState icon="cloud-offline-outline" title="Sin conexión" body="El resumen anual necesita internet." actionLabel="Reintentar" onAction={load} /></Card>
-      ) : stats.totals.count === 0 ? (
-        <Card style={{ marginTop: SPACE.md }}><EmptyState icon="calendar-outline" title={`Sin movimientos en ${year}`} body="Cuando registres ingresos y gastos, verás aquí cómo cerró cada mes." /></Card>
-      ) : (
-        <>
-          <Card style={{ marginTop: SPACE.md }}>
-            <View style={{ flexDirection: 'row' }}>
-              <View style={{ flex: 1 }}>
-                <Txt variant="caption" muted>Ingresos</Txt>
-                <Money value={stats.totals.ingresos} variant="heading" color={C.income} adjustsFontSizeToFit />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Txt variant="caption" muted>Gastos</Txt>
-                <Money value={stats.totals.gastos} variant="heading" color={C.expense} adjustsFontSizeToFit />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Txt variant="caption" muted>Balance</Txt>
-                <Money value={stats.totals.balance} variant="heading" color={stats.totals.balance < 0 ? C.expense : C.text} adjustsFontSizeToFit />
-              </View>
+function LegendDot({ color, label }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View style={{ width: 10, height: 4, borderRadius: 2, backgroundColor: color }} />
+      <Txt variant="caption" muted>{label}</Txt>
+    </View>
+  );
+}
+
+function MonthBars({ months, max }) {
+  const { colors: C } = useTheme();
+  return (
+    <Card>
+      {months.map((m) => {
+        const bal = m.ingresos - m.gastos;
+        return (
+          <View key={m.key} style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.md, paddingVertical: SPACE.sm }}>
+            <Txt variant="label" muted style={{ width: 34, textTransform: 'capitalize' }}>{m.label}</Txt>
+            <View style={{ flex: 1, gap: 3 }}>
+              <View style={{ height: 4, borderRadius: 2, width: `${(m.ingresos / max) * 100}%`, backgroundColor: C.income }} />
+              <View style={{ height: 4, borderRadius: 2, width: `${(m.gastos / max) * 100}%`, backgroundColor: C.expense }} />
             </View>
-          </Card>
+            <Money value={bal} variant="caption" sign color={bal < 0 ? C.expense : C.text} style={{ width: 100, textAlign: 'right' }} />
+          </View>
+        );
+      })}
+      <View style={{ flexDirection: 'row', gap: SPACE.lg, marginTop: SPACE.md }}>
+        <LegendDot color={C.income} label="Ingresos" />
+        <LegendDot color={C.expense} label="Gastos" />
+      </View>
+    </Card>
+  );
+}
 
-          <SectionTitle title="Mes a mes" />
-          <Card>
-            {stats.months.map((m, idx) => {
-              if (!m.ingresos && !m.gastos) return null;
-              const bal = m.ingresos - m.gastos;
-              return (
-                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.md, paddingVertical: SPACE.sm }}>
-                  <Txt variant="label" muted style={{ width: 34, textTransform: 'capitalize' }}>{monthShort(idx)}</Txt>
-                  <View style={{ flex: 1, gap: 3 }}>
-                    <View style={{ height: 4, borderRadius: 2, width: `${(m.ingresos / stats.max) * 100}%`, backgroundColor: C.income }} />
-                    <View style={{ height: 4, borderRadius: 2, width: `${(m.gastos / stats.max) * 100}%`, backgroundColor: C.expense }} />
-                  </View>
-                  <Money value={bal} variant="caption" sign color={bal < 0 ? C.expense : C.text} style={{ width: 100, textAlign: 'right' }} />
-                </View>
-              );
-            })}
-            <View style={{ flexDirection: 'row', gap: SPACE.lg, marginTop: SPACE.md }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={{ width: 10, height: 4, borderRadius: 2, backgroundColor: C.income }} />
-                <Txt variant="caption" muted>Ingresos</Txt>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={{ width: 10, height: 4, borderRadius: 2, backgroundColor: C.expense }} />
-                <Txt variant="caption" muted>Gastos</Txt>
-              </View>
+function TopCategories({ topCats, totalGastos }) {
+  const { colors: C, mode } = useTheme();
+  if (topCats.length === 0) return null;
+  return (
+    <>
+      <SectionTitle title="Donde más gastaste" />
+      <Card>
+        {topCats.map(([key, amount], i) => (
+          <View key={key} style={{ marginTop: i === 0 ? 0 : SPACE.md }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Txt>{categoryLabel(key)}</Txt>
+              <Money value={amount} variant="caption" color={C.textMuted} />
             </View>
-          </Card>
+            <ProgressBar ratio={amount / totalGastos} color={categoryColor(key, mode)} height={4} />
+          </View>
+        ))}
+      </Card>
+    </>
+  );
+}
 
-          {stats.topCats.length > 0 ? (
-            <>
-              <SectionTitle title="Donde más gastaste" />
-              <Card>
-                {stats.topCats.map(([key, amount], i) => (
-                  <View key={key} style={{ marginTop: i === 0 ? 0 : SPACE.md }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <Txt>{categoryLabel(key)}</Txt>
-                      <Money value={amount} variant="caption" color={C.textMuted} />
-                    </View>
-                    <ProgressBar ratio={amount / stats.totals.gastos} color={categoryColor(key, mode)} height={4} />
-                  </View>
-                ))}
-              </Card>
-            </>
-          ) : null}
-        </>
-      )}
+function YearBody({ year, txs, failed, onRetry }) {
+  const { colors: C } = useTheme();
+  const stats = useMemo(() => (txs ? yearStats(txs, year) : null), [txs, year]);
+
+  if (!stats) return <ActivityIndicator color={C.textMuted} style={{ marginTop: SPACE.xxl }} />;
+  if (failed) {
+    return (
+      <Card style={{ marginTop: SPACE.md }}>
+        <EmptyState icon="cloud-offline-outline" title="Sin conexión" body="El resumen anual necesita internet." actionLabel="Reintentar" onAction={onRetry} />
+      </Card>
+    );
+  }
+  if (stats.totals.count === 0) {
+    return (
+      <Card style={{ marginTop: SPACE.md }}>
+        <EmptyState icon="calendar-outline" title={`Sin movimientos en ${year}`} body="Cuando registres ingresos y gastos, verás aquí cómo cerró cada mes." />
+      </Card>
+    );
+  }
+  return (
+    <>
+      <YearTotals totals={stats.totals} />
+      <SectionTitle title="Mes a mes" />
+      <MonthBars months={stats.months} max={stats.max} />
+      <TopCategories topCats={stats.topCats} totalGastos={stats.totals.gastos} />
+    </>
+  );
+}
+
+function YearView() {
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(currentYear);
+  const { txs, failed, reload } = useYearTransactions(year);
+  return (
+    <>
+      <YearSwitcher year={year} onChange={setYear} maxYear={currentYear} />
+      <YearBody year={year} txs={txs} failed={failed} onRetry={reload} />
     </>
   );
 }
