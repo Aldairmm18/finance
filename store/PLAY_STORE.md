@@ -25,7 +25,7 @@ npx eas-cli build --platform android --profile production   # AAB para Play
 
 **Nombre (30):** Finance: presupuesto mensual
 
-**Descripción breve (80):** Planea tu mes, registra tus gastos y mira cuánto te queda. Simple y sin anuncios.
+**Descripción breve (80):** Planea tu mes, registra tus gastos y mira cuánto te queda. Simple, sin anuncios.
 
 **Descripción completa:**
 
@@ -55,6 +55,13 @@ npx eas-cli build --platform android --profile production   # AAB para Play
 - Ícono 512×512: `play-icon-512.png`
 - Gráfico destacado 1024×500: `feature-graphic-1024x500.png`
 - Capturas de teléfono: mínimo 2 y máximo 8. La proporción no puede pasar de 2:1, así que tómalas en un emulador o teléfono Android (las de iPhone 17 no sirven).
+
+### Traducciones de la ficha (cargadas en Play Console)
+
+- **es-ES / es-US:** mismo texto que es-419; "arriendo" pasa a "alquiler" (es-ES) y a "renta" (es-US).
+- **en-US:** nombre "Finance: monthly budget"; breve "Plan your month, track your spending and see what is left. Simple, no ads." La descripción completa aclara "the app is currently available in Spanish only".
+- **pt-BR:** nombre "Finance: orçamento mensal"; breve "Planeje seu mês, registre gastos e veja quanto sobra. Simples, sem anúncios." La descripción completa aclara "por enquanto o app está disponível apenas em espanhol".
+- Las imágenes son las mismas para todos los idiomas. Si algún día traduces la app, quita la aclaración de "solo en español".
 
 ## 4. Contenido de la app (Play Console → Política)
 
