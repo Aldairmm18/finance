@@ -48,10 +48,10 @@ BEGIN
     RAISE EXCEPTION 'No existe la cuenta finance.revisiondev@gmail.com. Créala primero desde la app.';
   END IF;
 
-  DELETE FROM transacciones       WHERE user_id = uid;
-  DELETE FROM recurring_payments  WHERE user_id = uid;
-  DELETE FROM presupuesto_mensual WHERE user_id = uid;
-  DELETE FROM presupuesto         WHERE user_id = uid;
+  DELETE FROM transacciones       WHERE user_id::text = uid::text;
+  DELETE FROM recurring_payments  WHERE user_id::text = uid::text;
+  DELETE FROM presupuesto_mensual WHERE user_id::text = uid::text;
+  DELETE FROM presupuesto         WHERE user_id::text = uid::text;
 
   -- Plan base y plan de septiembre y octubre
   INSERT INTO presupuesto (user_id, datos, updated_at) VALUES (uid, plan, NOW());
